@@ -1,36 +1,176 @@
 ﻿using System;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
-using HandyControl.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using TaxiGO.Models;
-using System.Text.RegularExpressions;
+using BCrypt.Net;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media.Effects;
 
 namespace TaxiGO
 {
-    public partial class MainWindow : System.Windows.Window
+    public partial class MainWindow : Window
     {
         private readonly TaxiGoContext _context;
         private bool isLoginMode = true;
         private bool isPasswordVisible = false;
         private bool isRegPasswordVisible = false;
+        private Grid? mainGrid;
+        private Grid? innerGrid;
+        private Border? mainBorder;
 
         public MainWindow()
         {
             InitializeComponent();
             _context = App.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
+            Loaded += MainWindow_Loaded;
+            StateChanged += MainWindow_StateChanged;
+            SizeChanged += MainWindow_SizeChanged;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            mainGrid = FindName("MainGrid") as Grid;
+            innerGrid = FindName("InnerGrid") as Grid;
+            mainBorder = FindName("MainBorder") as Border;
+            if (mainGrid == null || innerGrid == null || mainBorder == null)
+            {
+                MessageBox.Show("Не удалось найти MainGrid, InnerGrid или MainBorder. Проверьте XAML.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                Close();
+            }
+            UpdateLayoutForWindowState();
+        }
+
+        private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateLayoutForWindowState();
+        }
+
+        private void MainWindow_StateChanged(object? sender, EventArgs e)
+        {
+            UpdateLayoutForWindowState();
+        }
+
+        private void UpdateLayoutForWindowState()
+        {
+            if (mainBorder == null || innerGrid == null || LoginPanel == null || RegisterPanel == null) return;
+
+            double windowWidth = ActualWidth;
+            double windowHeight = ActualHeight;
+
+            // Находим RectangleGeometry для обрезки
+            var windowClip = MainGrid.Clip as RectangleGeometry;
+            if (windowClip == null) return;
+
+            if (WindowState == WindowState.Maximized)
+            {
+                // Убираем скругление углов и тень в полноэкранном режиме
+                mainBorder.CornerRadius = new CornerRadius(0);
+                mainBorder.Effect = null;
+
+                // Обновляем Clip: убираем скругление углов
+                windowClip.Rect = new Rect(0, 0, windowWidth, windowHeight);
+                windowClip.RadiusX = 0;
+                windowClip.RadiusY = 0;
+
+                // Убираем внешние отступы
+                innerGrid.Margin = new Thickness(40);
+
+                // Адаптируем размеры элементов
+                double contentWidth = Math.Min(windowWidth * 0.3, 450); // 30% ширины окна, но не более 450
+                double tabWidth = Math.Min(windowWidth * 0.2, 300); // 20% ширины окна, но не более 300
+
+                // Панели ввода
+                LoginInputPanel.Width = contentWidth;
+                PasswordInputPanel.Width = contentWidth;
+                RegNamePanel.Width = contentWidth;
+                RegLoginPanel.Width = contentWidth;
+                RegPasswordPanel.Width = contentWidth;
+                RegPhonePanel.Width = contentWidth;
+                RegEmailPanel.Width = contentWidth;
+
+                // Кнопки
+                LoginButton.Width = contentWidth * 0.4; // 40% от ширины панели
+                LoginButton.MaxWidth = 250;
+                RegisterButton.Width = contentWidth * 0.4;
+                RegisterButton.MaxWidth = 250;
+
+                // Вкладки
+                TabGridInner.Width = tabWidth;
+                TabGridInner.Height = 36; // Уменьшаем высоту вкладок
+                TabGridInner.MaxWidth = 300;
+
+                // Отступы для вкладок
+                TabGrid.Margin = new Thickness(0, 40, 0, 20);
+
+                // Динамический отступ сверху для панелей в полноэкранном режиме
+                double loginTopMargin = Math.Max((windowHeight - 600) / 4, 30);
+                double registerTopMargin = Math.Max((windowHeight - 600) / 6, 20);
+
+                LoginPanel.Margin = new Thickness(0, loginTopMargin, 0, 0);
+                RegisterPanel.Margin = new Thickness(0, registerTopMargin, 0, 0);
+            }
+            else
+            {
+                // Восстанавливаем скругление углов и тень
+                mainBorder.CornerRadius = new CornerRadius(20);
+                mainBorder.Effect = new DropShadowEffect
+                {
+                    BlurRadius = 20,
+                    ShadowDepth = 0,
+                    Opacity = 0.5,
+                    Color = Colors.Black
+                };
+
+                // Обновляем Clip: восстанавливаем скругление углов
+                windowClip.Rect = new Rect(0, 0, windowWidth, windowHeight);
+                windowClip.RadiusX = 20;
+                windowClip.RadiusY = 20;
+
+                // Восстанавливаем внешние отступы
+                innerGrid.Margin = new Thickness(20);
+
+                // Возвращаем стандартные размеры
+                double contentWidth = 300; // Стандартная ширина
+                double tabWidth = 300;
+
+                // Панели ввода
+                LoginInputPanel.Width = contentWidth;
+                PasswordInputPanel.Width = contentWidth;
+                RegNamePanel.Width = contentWidth;
+                RegLoginPanel.Width = contentWidth;
+                RegPasswordPanel.Width = contentWidth;
+                RegPhonePanel.Width = contentWidth;
+                RegEmailPanel.Width = contentWidth;
+
+                // Кнопки
+                LoginButton.Width = 200;
+                LoginButton.MaxWidth = 300;
+                RegisterButton.Width = 200;
+                RegisterButton.MaxWidth = 300;
+
+                // Вкладки
+                TabGridInner.Width = tabWidth;
+                TabGridInner.Height = 40; // Стандартная высота
+                TabGridInner.MaxWidth = 400;
+
+                // Отступы для вкладок
+                TabGrid.Margin = new Thickness(0, 0, 0, 20);
+
+                // Сбрасываем отступы для панелей в оконном режиме
+                LoginPanel.Margin = new Thickness(0);
+                RegisterPanel.Margin = new Thickness(0);
+            }
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var tabControl = sender as HandyControl.Controls.TabControl;
+            var tabControl = sender as TabControl;
             if (tabControl == null || LoginPanel == null || RegisterPanel == null)
                 return;
 
@@ -39,27 +179,25 @@ namespace TaxiGO
                 isLoginMode = true;
                 LoginPanel.Visibility = Visibility.Visible;
                 RegisterPanel.Visibility = Visibility.Collapsed;
+                Title = "TaxiGO - Авторизация";
             }
             else
             {
                 isLoginMode = false;
-                LoginPanel.Visibility = Visibility.Collapsed;
                 RegisterPanel.Visibility = Visibility.Visible;
+                LoginPanel.Visibility = Visibility.Collapsed;
+                Title = "TaxiGO - Регистрация";
             }
         }
 
-        private string HashPassword(string password)
+        private void LoginTabButton_Click(object sender, RoutedEventArgs e)
         {
-            using (SHA256 sha256 = SHA256.Create())
-            {
-                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-                StringBuilder builder = new StringBuilder();
-                foreach (byte b in bytes)
-                {
-                    builder.Append(b.ToString("x2"));
-                }
-                return builder.ToString();
-            }
+            TabControl.SelectedIndex = 0;
+        }
+
+        private void RegisterTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            TabControl.SelectedIndex = 1;
         }
 
         private void ShakeElement(UIElement element)
@@ -81,29 +219,33 @@ namespace TaxiGO
         {
             if (isLoginMode)
             {
-                string login = LoginTextBox.Text;
-                string password = isPasswordVisible ? PasswordTextBox.Text : PasswordBox.Password;
+                string login = LoginTextBox.Text.Trim();
+                string password = (isPasswordVisible ? PasswordTextBox.Text : PasswordBox.Password).Trim();
 
                 if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
                 {
-                    System.Windows.MessageBox.Show("Заполните все поля.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Заполните все поля.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     ShakeElement(LoginTextBox);
                     ShakeElement(isPasswordVisible ? PasswordTextBox : PasswordBox);
                     return;
                 }
 
-                // Пароли в базе данных хранятся в виде текста, поэтому не хешируем
-                var user = _context.Users.FirstOrDefault(u => u.Login == login && u.PasswordHash == password);
+                if (_context.Users == null)
+                {
+                    MessageBox.Show("Ошибка: база данных недоступна.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
 
-                if (user != null)
+                var user = _context.Users.FirstOrDefault(u => u.Login == login);
+                if (user != null && BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
                 {
                     if (!user.IsActive)
                     {
-                        System.Windows.MessageBox.Show("Ваш аккаунт заблокирован.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show("Ваш аккаунт заблокирован.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
 
-                    System.Windows.Window nextWindow = user.Role switch
+                    Window nextWindow = user.Role switch
                     {
                         "Client" => new ClientWindow(user.Name, user.UserId),
                         "Driver" => new DriverWindow(user.Name, user.UserId),
@@ -117,56 +259,70 @@ namespace TaxiGO
                 }
                 else
                 {
-                    System.Windows.MessageBox.Show("Неверный логин или пароль.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Неверный логин или пароль.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     ShakeElement(LoginTextBox);
                     ShakeElement(isPasswordVisible ? PasswordTextBox : PasswordBox);
                 }
             }
             else
             {
-                string name = RegNameTextBox.Text;
-                string login = RegLoginTextBox.Text;
-                string password = isRegPasswordVisible ? RegPasswordTextBox.Text : RegPasswordBox.Password;
-                string phone = RegPhoneTextBox.Text;
+                string name = RegNameTextBox.Text.Trim();
+                string login = RegLoginTextBox.Text.Trim();
+                string password = (isRegPasswordVisible ? RegPasswordTextBox.Text : RegPasswordBox.Password).Trim();
+                string phone = RegPhoneTextBox.Text.Trim();
+                string email = RegEmailTextBox.Text.Trim();
 
                 if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(login) ||
                     string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(phone))
                 {
-                    System.Windows.MessageBox.Show("Заполните все поля.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    ShakeElement(RegNameTextBox);
-                    ShakeElement(RegLoginTextBox);
-                    ShakeElement(isRegPasswordVisible ? RegPasswordTextBox : RegPasswordBox);
-                    ShakeElement(RegPhoneTextBox);
+                    MessageBox.Show("Заполните все обязательные поля.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    if (string.IsNullOrWhiteSpace(name)) ShakeElement(RegNameTextBox);
+                    if (string.IsNullOrWhiteSpace(login)) ShakeElement(RegLoginTextBox);
+                    if (string.IsNullOrWhiteSpace(password)) ShakeElement(isRegPasswordVisible ? RegPasswordTextBox : RegPasswordBox);
+                    if (string.IsNullOrWhiteSpace(phone)) ShakeElement(RegPhoneTextBox);
                     return;
                 }
 
                 if (password.Length < 6)
                 {
-                    System.Windows.MessageBox.Show("Пароль должен содержать минимум 6 символов.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Пароль должен содержать минимум 6 символов.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     ShakeElement(isRegPasswordVisible ? RegPasswordTextBox : RegPasswordBox);
+                    return;
+                }
+
+                if (_context.Users == null)
+                {
+                    MessageBox.Show("Ошибка: база данных недоступна.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
                 if (_context.Users.Any(u => u.Login == login))
                 {
-                    System.Windows.MessageBox.Show("Пользователь с таким логином уже существует.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Пользователь с таким логином уже существует.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     ShakeElement(RegLoginTextBox);
                     return;
                 }
 
-                // Убираем все нечисловые символы из номера телефона
+                if (!string.IsNullOrWhiteSpace(email) && !Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+                {
+                    MessageBox.Show("Введите корректный адрес электронной почты.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ShakeElement(RegEmailTextBox);
+                    return;
+                }
+
                 phone = Regex.Replace(phone, "[^0-9]", "");
                 if (phone.Length == 11 && phone.StartsWith("8"))
                 {
                     var newUser = new User
                     {
-                        Name = name,
-                        Login = login,
-                        PasswordHash = password, // Сохраняем пароль как текст, без хеширования
+                        Name = name.Length > 100 ? name.Substring(0, 100) : name,
+                        Login = login.Length > 50 ? login.Substring(0, 50) : login,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                         Phone = phone,
                         Role = "Client",
                         IsActive = true,
-                        Email = "" // Устанавливаем пустую строку вместо NULL
+                        Email = string.IsNullOrWhiteSpace(email) ? null : email,
+                        RegistrationDate = DateTime.Now
                     };
 
                     try
@@ -174,17 +330,26 @@ namespace TaxiGO
                         _context.Users.Add(newUser);
                         _context.SaveChanges();
 
-                        System.Windows.MessageBox.Show("Регистрация успешна! Теперь вы можете войти.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show("Регистрация успешна! Теперь вы можете войти.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
                         TabControl.SelectedIndex = 0;
                     }
                     catch (Exception ex)
                     {
-                        System.Windows.MessageBox.Show($"Ошибка при регистрации: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                        string errorMessage = ex.Message;
+                        if (ex.InnerException != null)
+                        {
+                            errorMessage += $"\nInner Exception: {ex.InnerException.Message}";
+                            if (ex.InnerException.InnerException != null)
+                            {
+                                errorMessage += $"\nInner Inner Exception: {ex.InnerException.InnerException.Message}";
+                            }
+                        }
+                        MessageBox.Show($"Ошибка при регистрации: {errorMessage}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
                 else
                 {
-                    System.Windows.MessageBox.Show("Номер телефона должен начинаться с 8 и содержать 11 цифр.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Номер телефона должен начинаться с 8 и содержать 11 цифр.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     ShakeElement(RegPhoneTextBox);
                 }
             }
@@ -198,14 +363,14 @@ namespace TaxiGO
                 PasswordTextBox.Text = PasswordBox.Password;
                 PasswordBox.Visibility = Visibility.Collapsed;
                 PasswordTextBox.Visibility = Visibility.Visible;
-                TogglePasswordImage.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/eye-off.png"));
+                TogglePasswordIcon.Kind = PackIconKind.EyeOff;
             }
             else
             {
                 PasswordBox.Password = PasswordTextBox.Text;
                 PasswordBox.Visibility = Visibility.Visible;
                 PasswordTextBox.Visibility = Visibility.Collapsed;
-                TogglePasswordImage.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/eye.png"));
+                TogglePasswordIcon.Kind = PackIconKind.Eye;
             }
         }
 
@@ -217,14 +382,14 @@ namespace TaxiGO
                 RegPasswordTextBox.Text = RegPasswordBox.Password;
                 RegPasswordBox.Visibility = Visibility.Collapsed;
                 RegPasswordTextBox.Visibility = Visibility.Visible;
-                ToggleRegPasswordImage.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/eye-off.png"));
+                ToggleRegPasswordIcon.Kind = PackIconKind.EyeOff;
             }
             else
             {
                 RegPasswordBox.Password = RegPasswordTextBox.Text;
                 RegPasswordBox.Visibility = Visibility.Visible;
                 RegPasswordTextBox.Visibility = Visibility.Collapsed;
-                ToggleRegPasswordImage.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/eye.png"));
+                ToggleRegPasswordIcon.Kind = PackIconKind.Eye;
             }
         }
 
@@ -233,17 +398,14 @@ namespace TaxiGO
             string currentText = RegPhoneTextBox.Text;
             string newText = currentText + e.Text;
 
-            // Удаляем все нечисловые символы для проверки длины
             string digitsOnly = Regex.Replace(newText, "[^0-9]", "");
 
-            // Ограничиваем ввод до 11 цифр
             if (digitsOnly.Length > 11)
             {
                 e.Handled = true;
                 return;
             }
 
-            // Форматирование номера телефона
             if (digitsOnly.Length <= 11)
             {
                 string formatted = "8";
@@ -260,7 +422,11 @@ namespace TaxiGO
 
         private void ForgotPassword_Click(object sender, MouseButtonEventArgs e)
         {
-            System.Windows.MessageBox.Show("Функция восстановления пароля пока в разработке.", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
+            var recoveryWindow = new PasswordRecoveryWindow(_context)
+            {
+                Owner = this
+            };
+            recoveryWindow.ShowDialog();
         }
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)
@@ -268,9 +434,46 @@ namespace TaxiGO
             WindowState = WindowState.Minimized;
         }
 
+        private void MaximizeRestoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (WindowState == WindowState.Normal)
+            {
+                WindowState = WindowState.Maximized;
+            }
+            else
+            {
+                WindowState = WindowState.Normal;
+            }
+        }
+
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                if (e.OriginalSource is not Button)
+                {
+                    if (e.ClickCount == 2)
+                    {
+                        if (WindowState == WindowState.Normal)
+                        {
+                            WindowState = WindowState.Maximized;
+                        }
+                        else if (WindowState == WindowState.Maximized)
+                        {
+                            WindowState = WindowState.Normal;
+                        }
+                    }
+                    else
+                    {
+                        DragMove();
+                    }
+                }
+            }
         }
     }
 }

@@ -1,5 +1,10 @@
 ﻿using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using MaterialDesignThemes.Wpf;
 using Microsoft.Extensions.DependencyInjection;
 using TaxiGO.Models;
 
@@ -26,7 +31,10 @@ namespace TaxiGO
         {
             if (string.IsNullOrEmpty(StartPoint.Text) || string.IsNullOrEmpty(EndPoint.Text) || TariffCombo.SelectedItem == null)
             {
-                System.Windows.MessageBox.Show("Заполните все поля!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                Snackbar.MessageQueue?.Enqueue("Заполните все поля!");
+                ShakeElement(StartPoint);
+                ShakeElement(EndPoint);
+                ShakeElement(TariffCombo);
                 return;
             }
 
@@ -41,7 +49,7 @@ namespace TaxiGO
             };
             _context.Orders.Add(order);
             _context.SaveChanges();
-            System.Windows.MessageBox.Show("Заказ успешно создан!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+            Snackbar.MessageQueue?.Enqueue("Заказ успешно создан!");
             LoadOrderHistory();
         }
 
@@ -56,6 +64,31 @@ namespace TaxiGO
             ProfileName.Text = $"Имя: {user.Name}";
             ProfilePhone.Text = $"Телефон: {user.Phone}";
             ProfileEmail.Text = $"Email: {user.Email ?? "Не указан"}";
+        }
+
+        private void ShakeElement(UIElement element)
+        {
+            var shakeAnimation = new DoubleAnimation
+            {
+                From = 0,
+                To = 10,
+                Duration = TimeSpan.FromMilliseconds(50),
+                AutoReverse = true,
+                RepeatBehavior = new RepeatBehavior(3)
+            };
+            var transform = new TranslateTransform();
+            element.RenderTransform = transform;
+            transform.BeginAnimation(TranslateTransform.XProperty, shakeAnimation);
+        }
+
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
         }
     }
 }
