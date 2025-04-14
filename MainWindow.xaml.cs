@@ -17,6 +17,8 @@ namespace TaxiGO
     public partial class MainWindow : Window
     {
         private readonly TaxiGoContext _context;
+        private readonly IServiceScope _scope;
+        private readonly IServiceScopeFactory _scopeFactory; // Добавляем поле для хранения IServiceScopeFactory
         private bool isLoginMode = true;
         private bool isPasswordVisible = false;
         private bool isRegPasswordVisible = false;
@@ -24,13 +26,22 @@ namespace TaxiGO
         private Grid? innerGrid;
         private Border? mainBorder;
 
-        public MainWindow()
+        public MainWindow(IServiceScopeFactory scopeFactory)
         {
             InitializeComponent();
-            _context = App.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
+            _scopeFactory = scopeFactory; // Сохраняем IServiceScopeFactory
+            _scope = scopeFactory.CreateScope();
+            _context = _scope.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
             Loaded += MainWindow_Loaded;
             StateChanged += MainWindow_StateChanged;
             SizeChanged += MainWindow_SizeChanged;
+            Closing += MainWindow_Closing;
+        }
+
+        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // Освобождаем scope при закрытии окна
+            _scope?.Dispose();
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -69,23 +80,16 @@ namespace TaxiGO
 
             if (WindowState == WindowState.Maximized)
             {
-                // Убираем скругление углов и тень в полноэкранном режиме
                 mainBorder.CornerRadius = new CornerRadius(0);
                 mainBorder.Effect = null;
-
-                // Обновляем Clip: убираем скругление углов
                 windowClip.Rect = new Rect(0, 0, windowWidth, windowHeight);
                 windowClip.RadiusX = 0;
                 windowClip.RadiusY = 0;
-
-                // Убираем внешние отступы
                 innerGrid.Margin = new Thickness(40);
 
-                // Адаптируем размеры элементов
-                double contentWidth = Math.Min(windowWidth * 0.3, 450); // 30% ширины окна, но не более 450
-                double tabWidth = Math.Min(windowWidth * 0.2, 300); // 20% ширины окна, но не более 300
+                double contentWidth = Math.Min(windowWidth * 0.3, 450);
+                double tabWidth = Math.Min(windowWidth * 0.2, 300);
 
-                // Панели ввода
                 LoginInputPanel.Width = contentWidth;
                 PasswordInputPanel.Width = contentWidth;
                 RegNamePanel.Width = contentWidth;
@@ -94,21 +98,16 @@ namespace TaxiGO
                 RegPhonePanel.Width = contentWidth;
                 RegEmailPanel.Width = contentWidth;
 
-                // Кнопки
-                LoginButton.Width = contentWidth * 0.4; // 40% от ширины панели
+                LoginButton.Width = contentWidth * 0.4;
                 LoginButton.MaxWidth = 250;
                 RegisterButton.Width = contentWidth * 0.4;
                 RegisterButton.MaxWidth = 250;
 
-                // Вкладки
                 TabGridInner.Width = tabWidth;
-                TabGridInner.Height = 36; // Уменьшаем высоту вкладок
+                TabGridInner.Height = 36;
                 TabGridInner.MaxWidth = 300;
-
-                // Отступы для вкладок
                 TabGrid.Margin = new Thickness(0, 40, 0, 20);
 
-                // Динамический отступ сверху для панелей в полноэкранном режиме
                 double loginTopMargin = Math.Max((windowHeight - 600) / 4, 30);
                 double registerTopMargin = Math.Max((windowHeight - 600) / 6, 20);
 
@@ -117,7 +116,6 @@ namespace TaxiGO
             }
             else
             {
-                // Восстанавливаем скругление углов и тень
                 mainBorder.CornerRadius = new CornerRadius(20);
                 mainBorder.Effect = new DropShadowEffect
                 {
@@ -126,20 +124,14 @@ namespace TaxiGO
                     Opacity = 0.5,
                     Color = Colors.Black
                 };
-
-                // Обновляем Clip: восстанавливаем скругление углов
                 windowClip.Rect = new Rect(0, 0, windowWidth, windowHeight);
                 windowClip.RadiusX = 20;
                 windowClip.RadiusY = 20;
-
-                // Восстанавливаем внешние отступы
                 innerGrid.Margin = new Thickness(20);
 
-                // Возвращаем стандартные размеры
-                double contentWidth = 300; // Стандартная ширина
+                double contentWidth = 300;
                 double tabWidth = 300;
 
-                // Панели ввода
                 LoginInputPanel.Width = contentWidth;
                 PasswordInputPanel.Width = contentWidth;
                 RegNamePanel.Width = contentWidth;
@@ -148,21 +140,16 @@ namespace TaxiGO
                 RegPhonePanel.Width = contentWidth;
                 RegEmailPanel.Width = contentWidth;
 
-                // Кнопки
                 LoginButton.Width = 200;
                 LoginButton.MaxWidth = 300;
                 RegisterButton.Width = 200;
                 RegisterButton.MaxWidth = 300;
 
-                // Вкладки
                 TabGridInner.Width = tabWidth;
-                TabGridInner.Height = 40; // Стандартная высота
+                TabGridInner.Height = 40;
                 TabGridInner.MaxWidth = 400;
-
-                // Отступы для вкладок
                 TabGrid.Margin = new Thickness(0, 0, 0, 20);
 
-                // Сбрасываем отступы для панелей в оконном режиме
                 LoginPanel.Margin = new Thickness(0);
                 RegisterPanel.Margin = new Thickness(0);
             }
@@ -245,16 +232,9 @@ namespace TaxiGO
                         return;
                     }
 
-                    Window nextWindow = user.Role switch
-                    {
-                        "Client" => new ClientWindow(user.Name, user.UserId),
-                        "Driver" => new DriverWindow(user.Name, user.UserId),
-                        "Admin" => new AdminWindow(user.Name),
-                        "Dispatcher" => new DispatcherWindow(user.Name),
-                        _ => throw new NotSupportedException("Неизвестная роль пользователя")
-                    };
-
-                    nextWindow.Show();
+                    // Открываем WelcomeWindow, передавая IServiceScopeFactory
+                    var welcomeWindow = new WelcomeWindow(user.Name, user.UserId, user.Role, _scopeFactory);
+                    welcomeWindow.Show();
                     Close();
                 }
                 else
@@ -422,11 +402,21 @@ namespace TaxiGO
 
         private void ForgotPassword_Click(object sender, MouseButtonEventArgs e)
         {
-            var recoveryWindow = new PasswordRecoveryWindow(_context)
+            var scopeFactory = App.ServiceProvider.GetService<IServiceScopeFactory>();
+            if (scopeFactory == null)
             {
-                Owner = this
-            };
-            recoveryWindow.ShowDialog();
+                MessageBox.Show("Не удалось получить IServiceScopeFactory.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var recoveryWindow = new PasswordRecoveryWindow()
+                {
+                    Owner = this
+                };
+                recoveryWindow.ShowDialog();
+            }
         }
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)

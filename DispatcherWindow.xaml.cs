@@ -11,23 +11,46 @@ namespace TaxiGO
 {
     public partial class DispatcherWindow : System.Windows.Window
     {
-        private readonly TaxiGoContext _context;
+        private readonly TaxiGoContext? _context;
+        private readonly IServiceScope? _scope;
 
-        public DispatcherWindow(string userName)
+        public DispatcherWindow(string userName, IServiceScopeFactory scopeFactory)
         {
             InitializeComponent();
-            _context = App.ServiceProvider.GetService<TaxiGoContext>()!;
+            _scope = scopeFactory.CreateScope();
+            _context = _scope.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
             WelcomeText.Text = $"Добро пожаловать, {userName}!";
 
-            DriversCombo.ItemsSource = _context.Users.Where(u => u.Role == "Driver" && u.IsActive).ToList();
+            if (_context.Users != null)
+            {
+                DriversCombo.ItemsSource = _context.Users.Where(u => u.Role == "Driver" && u.IsActive).ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки списка водителей.");
+            }
+
             LoadPendingOrders();
             LoadActiveOrders();
+
+            Closing += DispatcherWindow_Closing;
+        }
+
+        private void DispatcherWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            _scope?.Dispose();
         }
 
         private void AssignOrder_Click(object sender, RoutedEventArgs e)
         {
             if (PendingOrdersGrid.SelectedItem is Order selectedOrder && DriversCombo.SelectedItem is User selectedDriver)
             {
+                if (_context == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                    return;
+                }
+
                 selectedOrder.DriverId = selectedDriver.UserId;
                 selectedOrder.Status = "Assigned";
                 _context.SaveChanges();
@@ -52,12 +75,26 @@ namespace TaxiGO
 
         private void LoadPendingOrders()
         {
-            PendingOrdersGrid.ItemsSource = _context.Orders.Where(o => o.Status == "Pending" && o.DriverId == null).ToList();
+            if (_context?.Orders != null)
+            {
+                PendingOrdersGrid.ItemsSource = _context.Orders.Where(o => o.Status == "Pending" && o.DriverId == null).ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки ожидающих заказов.");
+            }
         }
 
         private void LoadActiveOrders()
         {
-            ActiveOrdersGrid.ItemsSource = _context.Orders.Where(o => o.Status != "Completed").ToList();
+            if (_context?.Orders != null)
+            {
+                ActiveOrdersGrid.ItemsSource = _context.Orders.Where(o => o.Status != "Completed").ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки активных заказов.");
+            }
         }
 
         private void ShakeElement(UIElement element)

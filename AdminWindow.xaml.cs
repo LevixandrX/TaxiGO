@@ -12,23 +12,38 @@ namespace TaxiGO
 {
     public partial class AdminWindow : System.Windows.Window
     {
-        private readonly TaxiGoContext _context;
+        private readonly TaxiGoContext? _context;
+        private readonly IServiceScope? _scope;
 
-        public AdminWindow(string userName)
+        public AdminWindow(string userName, IServiceScopeFactory scopeFactory)
         {
             InitializeComponent();
-            _context = App.ServiceProvider.GetService<TaxiGoContext>()!;
+            _scope = scopeFactory.CreateScope();
+            _context = _scope.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
             WelcomeText.Text = $"Добро пожаловать, {userName}!";
 
             LoadUsers();
             LoadTariffs();
             LoadPromoCodes();
+
+            Closing += AdminWindow_Closing;
+        }
+
+        private void AdminWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            _scope?.Dispose();
         }
 
         private void ToggleUserActive_Click(object sender, RoutedEventArgs e)
         {
             if (UsersGrid.SelectedItem is User selectedUser)
             {
+                if (_context == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                    return;
+                }
+
                 selectedUser.IsActive = !selectedUser.IsActive;
                 _context.SaveChanges();
                 Snackbar.MessageQueue?.Enqueue($"Активность пользователя {selectedUser.Name} изменена!");
@@ -53,6 +68,12 @@ namespace TaxiGO
                 return;
             }
 
+            if (_context == null)
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                return;
+            }
+
             _context.Tariffs.Add(new Tariff { Name = TariffName.Text, BasePrice = price, PricePerKm = 10m, WaitingPenaltyPerMin = 5m });
             _context.SaveChanges();
             Snackbar.MessageQueue?.Enqueue("Тариф успешно добавлен!");
@@ -73,6 +94,12 @@ namespace TaxiGO
                 return;
             }
 
+            if (_context == null)
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                return;
+            }
+
             _context.PromoCodes.Add(new PromoCode { Code = PromoCodeText.Text, DiscountPercent = discount, ExpiryDate = DateTime.Now.AddMonths(1), IsActive = true });
             _context.SaveChanges();
             Snackbar.MessageQueue?.Enqueue("Промокод успешно добавлен!");
@@ -83,17 +110,38 @@ namespace TaxiGO
 
         private void LoadUsers()
         {
-            UsersGrid.ItemsSource = _context.Users.ToList();
+            if (_context?.Users != null)
+            {
+                UsersGrid.ItemsSource = _context.Users.ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки списка пользователей.");
+            }
         }
 
         private void LoadTariffs()
         {
-            TariffsGrid.ItemsSource = _context.Tariffs.ToList();
+            if (_context?.Tariffs != null)
+            {
+                TariffsGrid.ItemsSource = _context.Tariffs.ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки тарифов.");
+            }
         }
 
         private void LoadPromoCodes()
         {
-            PromoCodesGrid.ItemsSource = _context.PromoCodes.ToList();
+            if (_context?.PromoCodes != null)
+            {
+                PromoCodesGrid.ItemsSource = _context.PromoCodes.ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки промокодов.");
+            }
         }
 
         private void ShakeElement(UIElement element)

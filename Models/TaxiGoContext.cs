@@ -209,6 +209,7 @@ namespace TaxiGO.Models
                     .HasDefaultValueSql("(getdate())")
                     .HasColumnType("datetime");
                 entity.Property(e => e.Role).HasMaxLength(20);
+                entity.Property(e => e.AvatarPath).HasMaxLength(255);
             });
 
             modelBuilder.Entity<Vehicle>(entity =>

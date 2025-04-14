@@ -11,25 +11,40 @@ namespace TaxiGO
 {
     public partial class DriverWindow : System.Windows.Window
     {
-        private readonly TaxiGoContext _context;
+        private readonly TaxiGoContext? _context;
+        private readonly IServiceScope? _scope;
         private readonly int _userId;
 
-        public DriverWindow(string userName, int userId)
+        public DriverWindow(string userName, int userId, IServiceScopeFactory scopeFactory)
         {
             InitializeComponent();
-            _context = App.ServiceProvider.GetService<TaxiGoContext>()!;
+            _scope = scopeFactory.CreateScope();
+            _context = _scope.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
             _userId = userId;
             WelcomeText.Text = $"Добро пожаловать, {userName}!";
 
             LoadAvailableOrders();
             LoadMyOrders();
             LoadProfile();
+
+            Closing += DriverWindow_Closing;
+        }
+
+        private void DriverWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            _scope?.Dispose();
         }
 
         private void AcceptOrder_Click(object sender, RoutedEventArgs e)
         {
             if (AvailableOrdersGrid.SelectedItem is Order selectedOrder)
             {
+                if (_context == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                    return;
+                }
+
                 selectedOrder.DriverId = _userId;
                 selectedOrder.Status = "Accepted";
                 _context.SaveChanges();
@@ -54,6 +69,12 @@ namespace TaxiGO
                     return;
                 }
 
+                if (_context == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                    return;
+                }
+
                 selectedOrder.Status = "Completed";
                 selectedOrder.OrderCompletionTime = System.DateTime.Now;
                 _context.SaveChanges();
@@ -69,21 +90,48 @@ namespace TaxiGO
 
         private void LoadAvailableOrders()
         {
-            AvailableOrdersGrid.ItemsSource = _context.Orders.Where(o => o.Status == "Pending" && o.DriverId == null).ToList();
+            if (_context?.Orders != null)
+            {
+                AvailableOrdersGrid.ItemsSource = _context.Orders.Where(o => o.Status == "Pending" && o.DriverId == null).ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки доступных заказов.");
+            }
         }
 
         private void LoadMyOrders()
         {
-            MyOrdersGrid.ItemsSource = _context.Orders.Where(o => o.DriverId == _userId).ToList();
+            if (_context?.Orders != null)
+            {
+                MyOrdersGrid.ItemsSource = _context.Orders.Where(o => o.DriverId == _userId).ToList();
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки ваших заказов.");
+            }
         }
 
         private void LoadProfile()
         {
-            var user = _context.Users.First(u => u.UserId == _userId);
-            var vehicle = _context.Vehicles.FirstOrDefault(v => v.DriverId == _userId);
-            ProfileName.Text = $"Имя: {user.Name}";
-            ProfilePhone.Text = $"Телефон: {user.Phone}";
-            ProfileVehicle.Text = $"Машина: {vehicle?.Model ?? "Не назначена"}";
+            if (_context?.Users != null)
+            {
+                var user = _context.Users.FirstOrDefault(u => u.UserId == _userId);
+                if (user == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: Пользователь не найден.");
+                    return;
+                }
+
+                var vehicle = _context.Vehicles.FirstOrDefault(v => v.DriverId == _userId);
+                ProfileName.Text = $"Имя: {user.Name}";
+                ProfilePhone.Text = $"Телефон: {user.Phone}";
+                ProfileVehicle.Text = $"Машина: {vehicle?.Model ?? "Не назначена"}";
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки профиля.");
+            }
         }
 
         private void ShakeElement(UIElement element)

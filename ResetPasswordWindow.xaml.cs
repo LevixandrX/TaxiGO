@@ -5,45 +5,43 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
 using TaxiGO.Models;
 using BCrypt.Net;
 using MaterialDesignThemes.Wpf;
 using System.Windows.Shapes;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace TaxiGO
 {
-    public partial class PasswordRecoveryWindow : Window
+    public partial class ResetPasswordWindow : Window
     {
-        private readonly TaxiGoContext? _context;
-        private readonly IServiceScope? _scope;
-        private string? _tempCode;
-        private User? _user;
+        private readonly TaxiGoContext _context;
+        private readonly User _user;
+        private string _tempCode;
         private int _currentStep = 1;
         private bool _isPasswordVisible = false;
-        private Grid? _mainGrid;
-        private Grid? _innerGrid;
-        private Border? _mainBorder;
 
-        public PasswordRecoveryWindow()
+        public ResetPasswordWindow(TaxiGoContext context, User user)
         {
             InitializeComponent();
-            var scopeFactory = App.ServiceProvider.GetService<IServiceScopeFactory>();
-            if (scopeFactory == null)
-            {
-                MessageBox.Show("Не удалось получить IServiceScopeFactory.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                Close();
-                return;
-            }
-            _scope = scopeFactory.CreateScope();
-            _context = _scope.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
-            Loaded += PasswordRecoveryWindow_Loaded;
-            Closing += PasswordRecoveryWindow_Closing;
+            _context = context ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
+            _user = user ?? throw new InvalidOperationException("Пользователь не передан.");
+
+            // Генерируем временный код
+            _tempCode = new Random().Next(100000, 999999).ToString();
+            MessageBox.Show($"Ваш код восстановления: {_tempCode}\n(В реальном приложении это будет отправлено на ваш email или телефон)", "Код", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            Loaded += ResetPasswordWindow_Loaded;
+            Closing += ResetPasswordWindow_Closing;
         }
 
-        private void PasswordRecoveryWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        private void ResetPasswordWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            UpdateProgressIndicator();
+        }
+
+        private void ResetPasswordWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // Убедимся, что родительское окно включено при закрытии
             if (Owner != null)
             {
                 Owner.IsEnabled = true;
@@ -53,36 +51,21 @@ namespace TaxiGO
                 }
                 Owner.Activate();
             }
-            _scope?.Dispose();
-        }
-
-        private void PasswordRecoveryWindow_Loaded(object sender, RoutedEventArgs e)
-        {
-            _mainGrid = FindName("MainGrid") as Grid;
-            _innerGrid = FindName("InnerGrid") as Grid;
-            _mainBorder = FindName("MainBorder") as Border;
-            if (_mainGrid == null || _innerGrid == null || _mainBorder == null)
-            {
-                MessageBox.Show("Не удалось найти MainGrid, InnerGrid или MainBorder. Проверьте XAML.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                Close();
-                return;
-            }
-
-            UpdateProgressIndicator();
         }
 
         private void UpdateProgressIndicator()
         {
-            var activeColor = Color.FromRgb(76, 175, 80);
-            var inactiveColor = Color.FromRgb(97, 97, 97);
+            var activeColor = Color.FromRgb(66, 165, 245); // #FF42A5F5 (синий)
+            var inactiveColor = Color.FromRgb(97, 97, 97); // #FF616161 (серый)
 
+            // Обновляем круги
             Step1Indicator.Fill = new SolidColorBrush(_currentStep >= 1 ? activeColor : inactiveColor);
             Step2Indicator.Fill = new SolidColorBrush(_currentStep >= 2 ? activeColor : inactiveColor);
-            Step3Indicator.Fill = new SolidColorBrush(_currentStep >= 3 ? activeColor : inactiveColor);
 
+            // Обновляем линии
             Line1to2.Stroke = new SolidColorBrush(_currentStep >= 2 ? activeColor : inactiveColor);
-            Line2to3.Stroke = new SolidColorBrush(_currentStep >= 3 ? activeColor : inactiveColor);
 
+            // Анимация пульсации для активного шага
             if (_currentStep == 1)
             {
                 AnimatePulse(Step1Pulse, activeColor);
@@ -91,11 +74,8 @@ namespace TaxiGO
             {
                 AnimatePulse(Step2Pulse, activeColor);
             }
-            else if (_currentStep == 3)
-            {
-                AnimatePulse(Step3Pulse, activeColor);
-            }
 
+            // Управление видимостью кнопки "Назад"
             BackButton.Visibility = _currentStep > 1 ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -140,41 +120,7 @@ namespace TaxiGO
 
         private void ActionButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentStep == 1) // Шаг 1: Проверка логина
-            {
-                string login = LoginTextBox.Text.Trim();
-                if (string.IsNullOrWhiteSpace(login))
-                {
-                    MessageBox.Show("Введите логин.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    ShakeElement(LoginTextBox);
-                    return;
-                }
-
-                if (_context == null || _context.Users == null)
-                {
-                    MessageBox.Show("Ошибка: база данных недоступна.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                var users = _context.Users;
-                _user = users.FirstOrDefault(u => u.Login == login);
-                if (_user == null)
-                {
-                    MessageBox.Show("Пользователь с таким логином не найден.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    ShakeElement(LoginTextBox);
-                    return;
-                }
-
-                _tempCode = new Random().Next(100000, 999999).ToString();
-                MessageBox.Show($"Ваш код восстановления: {_tempCode}\n(В реальном приложении это будет отправлено на ваш email или телефон)", "Код", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                _currentStep = 2;
-                UpdateProgressIndicator();
-                LoginPanel.Visibility = Visibility.Collapsed;
-                CodePanel.Visibility = Visibility.Visible;
-                ActionButton.Content = "Подтвердить код";
-            }
-            else if (_currentStep == 2) // Шаг 2: Проверка кода
+            if (_currentStep == 1) // Шаг 1: Проверка кода
             {
                 string enteredCode = CodeTextBox.Text.Trim();
                 if (string.IsNullOrWhiteSpace(enteredCode))
@@ -191,13 +137,14 @@ namespace TaxiGO
                     return;
                 }
 
-                _currentStep = 3;
+                // Переходим к шагу 2
+                _currentStep = 2;
                 UpdateProgressIndicator();
                 CodePanel.Visibility = Visibility.Collapsed;
                 NewPasswordPanel.Visibility = Visibility.Visible;
                 ActionButton.Content = "Сменить пароль";
             }
-            else if (_currentStep == 3) // Шаг 3: Смена пароля
+            else if (_currentStep == 2) // Шаг 2: Смена пароля
             {
                 string newPassword = (_isPasswordVisible ? NewPasswordTextBox.Text : NewPasswordBox.Password).Trim();
                 if (string.IsNullOrWhiteSpace(newPassword))
@@ -214,23 +161,17 @@ namespace TaxiGO
                     return;
                 }
 
-                if (_user == null)
-                {
-                    MessageBox.Show("Ошибка: пользователь не найден.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                if (_context == null)
-                {
-                    MessageBox.Show("Ошибка: база данных недоступна.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
+                // Обновляем пароль пользователя
                 _user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
                 try
                 {
                     _context.SaveChanges();
-                    MessageBox.Show("Пароль успешно изменён! Теперь вы можете войти.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("Пароль успешно изменён!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                    // Показываем сообщение в Snackbar родительского окна
+                    if (Owner is ClientWindow clientWindow)
+                    {
+                        clientWindow.Snackbar.MessageQueue?.Enqueue("Пароль успешно сброшен!");
+                    }
                     Close();
                 }
                 catch (Exception ex)
@@ -245,18 +186,11 @@ namespace TaxiGO
             if (_currentStep == 2)
             {
                 _currentStep = 1;
-                CodePanel.Visibility = Visibility.Collapsed;
-                LoginPanel.Visibility = Visibility.Visible;
-                ActionButton.Content = "Далее";
-            }
-            else if (_currentStep == 3)
-            {
-                _currentStep = 2;
                 NewPasswordPanel.Visibility = Visibility.Collapsed;
                 CodePanel.Visibility = Visibility.Visible;
-                ActionButton.Content = "Подтвердить код";
+                ActionButton.Content = "Далее";
+                UpdateProgressIndicator();
             }
-            UpdateProgressIndicator();
         }
 
         private void TogglePasswordButton_Click(object sender, RoutedEventArgs e)

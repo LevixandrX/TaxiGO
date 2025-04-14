@@ -25,8 +25,12 @@ namespace TaxiGO
             ConfigureServices(serviceCollection);
             ServiceProvider = serviceCollection.BuildServiceProvider();
 
-            var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-            mainWindow.Show();
+            // Создаём новый scope для MainWindow
+            using (var scope = ServiceProvider.CreateScope())
+            {
+                var mainWindow = scope.ServiceProvider.GetRequiredService<MainWindow>();
+                mainWindow.Show();
+            }
         }
 
         private void ConfigureServices(IServiceCollection services)
@@ -38,13 +42,17 @@ namespace TaxiGO
             }
 
             services.AddDbContext<TaxiGoContext>(options =>
-                options.UseSqlServer(connectionString));
+                options.UseSqlServer(connectionString), ServiceLifetime.Scoped);
 
-            services.AddSingleton<MainWindow>();
-            services.AddSingleton<ClientWindow>();
-            services.AddSingleton<DriverWindow>();
-            services.AddSingleton<DispatcherWindow>();
-            services.AddSingleton<AdminWindow>();
+            // Регистрируем IServiceScopeFactory для создания новых scope
+            services.AddSingleton<IServiceScopeFactory>(provider => provider.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
+
+            // Регистрируем окна как Transient, чтобы каждый раз создавался новый экземпляр
+            services.AddTransient<MainWindow>();
+            services.AddTransient<ClientWindow>();
+            services.AddTransient<DriverWindow>();
+            services.AddTransient<DispatcherWindow>();
+            services.AddTransient<AdminWindow>();
         }
     }
 }

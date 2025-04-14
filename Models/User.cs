@@ -23,6 +23,10 @@ public partial class User
 
     public DateTime? RegistrationDate { get; set; }
 
+    public string? Address { get; set; }
+
+    public string? AvatarPath { get; set; }
+
     public virtual ICollection<DriverAvailability> DriverAvailabilities { get; set; } = new List<DriverAvailability>();
 
     public virtual ICollection<Log> Logs { get; set; } = new List<Log>();
