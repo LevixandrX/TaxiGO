@@ -13,7 +13,9 @@ public partial class Payment
 
     public DateTime? PaymentTime { get; set; }
 
-    public string PaymentMethod { get; set; } = null!;
+    public int PaymentMethodId { get; set; }
 
     public virtual Order Order { get; set; } = null!;
+
+    public virtual PaymentMethod PaymentMethod { get; set; } = null!;
 }

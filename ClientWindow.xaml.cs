@@ -21,59 +21,17 @@ using GMap.NET.MapProviders;
 using GMap.NET.WindowsPresentation;
 using System.Windows.Shapes;
 using System.Collections.Generic;
-using System.Net.Http;
+using TaxiGO.Services;
+using System.Collections.ObjectModel;
 
 namespace TaxiGO
 {
-    public class StatusToVisibilityConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            if (value == null || parameter == null)
-                return Visibility.Collapsed;
-
-            string status = value.ToString() ?? string.Empty;
-            string param = parameter.ToString() ?? string.Empty;
-
-            if (string.IsNullOrEmpty(status) || string.IsNullOrEmpty(param))
-                return Visibility.Collapsed;
-
-            if (param == "NotCanceled")
-            {
-                return status != "Canceled" ? Visibility.Visible : Visibility.Collapsed;
-            }
-
-            return status == param ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    public class NullToTextConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            if (value == null)
-            {
-                return parameter?.ToString() ?? string.Empty;
-            }
-            return value;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
     public partial class ClientWindow : Window
     {
         private readonly TaxiGoContext? _context;
         private readonly IServiceScope? _scope;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IGeocodingService _geocodingService;
         private readonly int _userId;
         private Grid? mainGrid;
         private Border? mainBorder;
@@ -88,16 +46,20 @@ namespace TaxiGO
         private decimal _calculatedCost;
         private GMapMarker? _startMarker;
         private GMapMarker? _endMarker;
-        // private GMapMarker? _routeMarker;
         private bool _isSelectingStartPoint = false;
         private bool _isSelectingEndPoint = false;
+        private double _distanceKm;
+        private System.Windows.Threading.DispatcherTimer _orderTimer;
+        private Dictionary<int, TimeSpan> _orderTimeRemaining;
+        private ObservableCollection<Order> _orders;
 
-        public ClientWindow(string userName, int userId, IServiceScopeFactory scopeFactory)
+        public ClientWindow(string userName, int userId, IServiceScopeFactory scopeFactory, IGeocodingService geocodingService)
         {
             InitializeComponent();
             _scopeFactory = scopeFactory;
             _scope = scopeFactory.CreateScope();
             _context = _scope.ServiceProvider.GetService<TaxiGoContext>() ?? throw new InvalidOperationException("TaxiGoContext не инициализирован.");
+            _geocodingService = geocodingService ?? throw new ArgumentNullException(nameof(geocodingService));
             _userId = userId;
             _userName = userName;
 
@@ -111,12 +73,22 @@ namespace TaxiGO
             }
 
             InitializeMainContent();
-            InitializeMap(); // Инициализация карты
+            InitializeMap();
 
             Loaded += ClientWindow_Loaded;
             StateChanged += ClientWindow_StateChanged;
             SizeChanged += ClientWindow_SizeChanged;
             Closing += ClientWindow_Closing;
+
+            // Инициализация таймера
+            _orderTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _orderTimer.Tick += OrderTimer_Tick;
+            _orderTimeRemaining = new Dictionary<int, TimeSpan>();
+            _orders = new ObservableCollection<Order>(); // Инициализация коллекции
+            _orderTimer.Start();
         }
 
         private void InitializeMap()
@@ -226,8 +198,8 @@ namespace TaxiGO
 
             try
             {
-                var startPoint = await GeocodeAddress(startAddress);
-                var endPoint = await GeocodeAddress(endAddress);
+                var startPoint = await _geocodingService.GeocodeAddressAsync(startAddress);
+                var endPoint = await _geocodingService.GeocodeAddressAsync(endAddress);
 
                 if (startPoint == null || endPoint == null)
                 {
@@ -252,7 +224,6 @@ namespace TaxiGO
                 }
 
                 var route = OpenStreetMapProvider.Instance.GetRoute(startPoint.Value, endPoint.Value, false, false, 15);
-                double distanceKm;
                 if (route != null && route.Points.Count > 1)
                 {
                     var gRoute = new GMapRoute(route.Points)
@@ -311,7 +282,7 @@ namespace TaxiGO
                     }
 
                     MapControl.Markers.Add(gRoute);
-                    distanceKm = route.Distance;
+                    _distanceKm = route.Distance; // Сохраняем расстояние в поле
                 }
                 else
                 {
@@ -360,155 +331,18 @@ namespace TaxiGO
                     }
 
                     MapControl.Markers.Add(gRoute);
-                    distanceKm = CalculateDirectDistance(startPoint.Value, endPoint.Value);
-                    Snackbar.MessageQueue?.Enqueue($"Не удалось построить маршрут. Использовано прямое расстояние: {distanceKm:F2} км.");
+                    _distanceKm = CalculateDirectDistance(startPoint.Value, endPoint.Value); // Сохраняем расстояние в поле
+                    Snackbar.MessageQueue?.Enqueue($"Не удалось построить маршрут. Использовано прямое расстояние: {_distanceKm:F2} км.");
                 }
 
-                DistanceTextBox.Text = distanceKm.ToString("F2");
+                DistanceTextBlock.Text = $"Расстояние: {_distanceKm:F2} км"; // Обновляем текстовое поле
                 MapControl.ZoomAndCenterMarkers(null);
             }
             catch (Exception ex)
             {
                 Snackbar.MessageQueue?.Enqueue($"Ошибка построения маршрута: {ex.Message}");
-            }
-        }
-
-        private async Task<PointLatLng?> GeocodeAddress(string address)
-        {
-            try
-            {
-                var apiKey = "622f639a-3c54-478c-bafb-67727bed282f";
-                if (!address.ToLower().Contains("санкт-петербург"))
-                {
-                    address = $"{address}, Санкт-Петербург";
-                }
-
-                var url = $"https://geocode-maps.yandex.ru/1.x/?apikey={apiKey}&geocode={Uri.EscapeDataString(address)}&format=json&results=1";
-                using (var client = new HttpClient())
-                {
-                    client.DefaultRequestHeaders.Add("User-Agent", "TaxiGO/1.0");
-                    var response = await client.GetStringAsync(url);
-
-                    var json = System.Text.Json.JsonDocument.Parse(response);
-                    var point = json.RootElement
-                        .GetProperty("response")
-                        .GetProperty("GeoObjectCollection")
-                        .GetProperty("featureMember");
-
-                    if (point.GetArrayLength() > 0)
-                    {
-                        var posElement = point[0]
-                            .GetProperty("GeoObject")
-                            .GetProperty("Point")
-                            .GetProperty("pos");
-
-                        if (posElement.ValueKind != System.Text.Json.JsonValueKind.String)
-                        {
-                            return null;
-                        }
-
-                        var pos = posElement.GetString();
-                        if (string.IsNullOrEmpty(pos))
-                        {
-                            return null;
-                        }
-
-                        var coords = pos.Split(' ');
-                        if (coords.Length != 2)
-                        {
-                            return null;
-                        }
-
-                        double lon = double.Parse(coords[0], System.Globalization.CultureInfo.InvariantCulture);
-                        double lat = double.Parse(coords[1], System.Globalization.CultureInfo.InvariantCulture);
-                        return new PointLatLng(lat, lon);
-                    }
-                    else
-                    {
-                        return null;
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-            finally
-            {
-                await Task.Delay(1000);
-            }
-        }
-
-        private async Task<string?> ReverseGeocode(PointLatLng point)
-        {
-            try
-            {
-                var apiKey = "622f639a-3c54-478c-bafb-67727bed282f";
-                var url = $"https://geocode-maps.yandex.ru/1.x/?apikey={apiKey}&geocode={point.Lng},{point.Lat}&format=json&results=1";
-                using (var client = new HttpClient())
-                {
-                    client.DefaultRequestHeaders.Add("User-Agent", "TaxiGO/1.0");
-                    var response = await client.GetStringAsync(url);
-
-                    var json = System.Text.Json.JsonDocument.Parse(response);
-                    var geoObject = json.RootElement
-                        .GetProperty("response")
-                        .GetProperty("GeoObjectCollection")
-                        .GetProperty("featureMember");
-
-                    if (geoObject.GetArrayLength() > 0)
-                    {
-                        var addressDetails = geoObject[0]
-                            .GetProperty("GeoObject")
-                            .GetProperty("metaDataProperty")
-                            .GetProperty("GeocoderMetaData")
-                            .GetProperty("Address");
-
-                        var parts = new List<string>();
-
-                        if (addressDetails.TryGetProperty("Components", out var components))
-                        {
-                            foreach (var component in components.EnumerateArray())
-                            {
-                                var kind = component.GetProperty("kind").GetString();
-                                var name = component.GetProperty("name").GetString();
-                                if (kind == "street" || kind == "house")
-                                {
-                                    if (!string.IsNullOrEmpty(name))
-                                    {
-                                        parts.Add(name);
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!parts.Any() && addressDetails.TryGetProperty("formatted", out var formatted))
-                        {
-                            var formattedText = formatted.GetString();
-                            if (!string.IsNullOrEmpty(formattedText))
-                            {
-                                formattedText = formattedText.Replace("Санкт-Петербург", "").Replace("Россия", "").Replace("  ", " ").Trim();
-                                formattedText = string.Join(", ", formattedText.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
-                                parts.Add(formattedText);
-                            }
-                        }
-
-                        string formattedAddress = string.Join(", ", parts);
-                        return string.IsNullOrEmpty(formattedAddress) ? "Неизвестный адрес" : formattedAddress;
-                    }
-                    else
-                    {
-                        return "Неизвестный адрес";
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                return "Неизвестный адрес";
-            }
-            finally
-            {
-                await Task.Delay(1000);
+                _distanceKm = 0; // Сбрасываем расстояние в случае ошибки
+                DistanceTextBlock.Text = "Расстояние: 0 км";
             }
         }
 
@@ -528,7 +362,19 @@ namespace TaxiGO
                 Snackbar.MessageQueue?.Enqueue("Ошибка загрузки тарифов.");
             }
 
-            LoadOrderHistory();
+            if (_context?.PaymentMethods != null)
+            {
+                var paymentMethods = _context.PaymentMethods
+                    .Where(pm => pm.IsActive)
+                    .ToList();
+                PaymentMethodCombo.ItemsSource = paymentMethods;
+                PaymentMethodCombo.DisplayMemberPath = "MethodName";
+            }
+            else
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки способов оплаты.");
+            }
+
             LoadProfile();
         }
 
@@ -545,6 +391,7 @@ namespace TaxiGO
 
             UpdateLayoutForWindowState();
             UpdateMaximizeRestoreIcon();
+            LoadOrderHistory();
         }
 
         private void ClientWindow_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -682,6 +529,19 @@ namespace TaxiGO
         {
             if (sender is Button clickedButton)
             {
+                if (OrderTaxiPanel.Visibility == Visibility.Visible)
+                {
+                    ResetOrderTaxiTab(sender, e);
+                }
+                else if (OrderHistoryPanel.Visibility == Visibility.Visible)
+                {
+                    ResetOrderHistoryTab();
+                }
+                else if (ProfilePanel.Visibility == Visibility.Visible)
+                {
+                    ResetProfileTab(sender, e);
+                }
+
                 OrderTaxiNavButton.Tag = null;
                 OrderHistoryNavButton.Tag = null;
                 ProfileNavButton.Tag = null;
@@ -787,14 +647,18 @@ namespace TaxiGO
             _endMarker = new GMapMarker(new PointLatLng(0, 0));
             StartPoint.Text = string.Empty;
             EndPoint.Text = string.Empty;
-            DistanceTextBox.Text = string.Empty;
+            DistanceTextBlock.Text = "Расстояние: 0 км";
+            _distanceKm = 0;
             CostTextBlock.Text = "Стоимость: 0 ₽";
             _calculatedCost = 0m;
             _isSelectingStartPoint = false;
             _isSelectingEndPoint = false;
             TariffCombo.SelectedItem = null;
-            WaitingTimeTextBox.Text = string.Empty;
+            PaymentMethodCombo.SelectedItem = null;
             PromoCodeTextBox.Text = string.Empty;
+            PromoCodeInfoTextBlock.Text = "";
+            PromoCodeInfoTextBlock.Visibility = Visibility.Collapsed;
+            _currentOrder = null;
         }
 
         private async void MapControl_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -813,7 +677,7 @@ namespace TaxiGO
                 MapControl.Markers.Remove(_startMarker);
                 _startMarker.Shape = CreateCustomMarker("Start", "Точка отправления", 50, 50);
                 MapControl.Markers.Add(_startMarker);
-                var address = await ReverseGeocode(latLng);
+                var address = await _geocodingService.ReverseGeocodeAsync(latLng);
                 StartPoint.Text = address ?? "Неизвестный адрес";
                 _isSelectingStartPoint = false;
 
@@ -833,7 +697,7 @@ namespace TaxiGO
                 MapControl.Markers.Remove(_endMarker);
                 _endMarker.Shape = CreateCustomMarker("End", "Точка назначения", 50, 50);
                 MapControl.Markers.Add(_endMarker);
-                var address = await ReverseGeocode(latLng);
+                var address = await _geocodingService.ReverseGeocodeAsync(latLng);
                 EndPoint.Text = address ?? "Неизвестный адрес";
                 _isSelectingEndPoint = false;
 
@@ -859,13 +723,12 @@ namespace TaxiGO
                 MapControl.Markers.Add(_endMarker);
 
                 var route = OpenStreetMapProvider.Instance.GetRoute(_startMarker.Position, _endMarker.Position, false, false, 15);
-                double distanceKm;
                 if (route != null && route.Points.Count > 1)
                 {
                     var gRoute = new GMapRoute(route.Points)
                     {
                         ZIndex = -1,
-                        Tag = "Route" // Используем Tag для идентификации маршрута
+                        Tag = "Route"
                     };
 
                     if (gRoute.Shape is System.Windows.Shapes.Path path)
@@ -877,7 +740,7 @@ namespace TaxiGO
 
                     MapControl.Markers.Add(gRoute);
 
-                    distanceKm = route.Distance;
+                    _distanceKm = route.Distance; // Сохраняем расстояние в поле
                 }
                 else
                 {
@@ -886,7 +749,7 @@ namespace TaxiGO
                     var gRoute = new GMapRoute(points)
                     {
                         ZIndex = -1,
-                        Tag = "DirectRoute" // Используем Tag для идентификации маршрута
+                        Tag = "DirectRoute"
                     };
 
                     if (gRoute.Shape is System.Windows.Shapes.Path path)
@@ -898,17 +761,18 @@ namespace TaxiGO
 
                     MapControl.Markers.Add(gRoute);
 
-                    distanceKm = CalculateDirectDistance(_startMarker.Position, _endMarker.Position);
-                    Snackbar.MessageQueue?.Enqueue($"Не удалось построить маршрут между выбранными точками. Использовано прямое расстояние: {distanceKm:F2} км.");
+                    _distanceKm = CalculateDirectDistance(_startMarker.Position, _endMarker.Position); // Сохраняем расстояние в поле
+                    Snackbar.MessageQueue?.Enqueue($"Не удалось построить маршрут между выбранными точками. Использовано прямое расстояние: {_distanceKm:F2} км.");
                 }
 
-                DistanceTextBox.Text = distanceKm.ToString("F2");
+                DistanceTextBlock.Text = $"Расстояние: {_distanceKm:F2} км"; // Обновляем текстовое поле
                 MapControl.ZoomAndCenterMarkers(null);
             }
             catch (Exception ex)
             {
                 Snackbar.MessageQueue?.Enqueue($"Ошибка построения маршрута: {ex.Message}");
-                DistanceTextBox.Text = string.Empty;
+                _distanceKm = 0; // Сбрасываем расстояние в случае ошибки
+                DistanceTextBlock.Text = "Расстояние: 0 км";
             }
         }
 
@@ -956,60 +820,47 @@ namespace TaxiGO
             CalculateCost_Click(sender, e);
         }
 
-        private void WaitingTimeTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            CalculateCost_Click(sender, e);
-        }
-
-        private void PromoCodeTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (!string.IsNullOrEmpty(PromoCodeTextBox.Text.Trim()))
-            {
-                ApplyPromoCode_Click(sender, e);
-            }
-        }
-
         private void CalculateCost_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(StartPoint.Text) || string.IsNullOrEmpty(EndPoint.Text) ||
-                string.IsNullOrEmpty(DistanceTextBox.Text) || TariffCombo.SelectedItem == null)
+            if (string.IsNullOrEmpty(StartPoint.Text) || string.IsNullOrEmpty(EndPoint.Text) || TariffCombo.SelectedItem == null)
             {
                 Snackbar.MessageQueue?.Enqueue("Заполните все обязательные поля!");
                 ShakeElement(StartPoint);
                 ShakeElement(EndPoint);
-                ShakeElement(DistanceTextBox);
                 ShakeElement(TariffCombo);
                 return;
             }
 
-            if (!double.TryParse(DistanceTextBox.Text, out double distanceKm) || distanceKm <= 0)
+            if (_distanceKm <= 0)
             {
-                Snackbar.MessageQueue?.Enqueue("Введите корректное расстояние (положительное число)!");
-                ShakeElement(DistanceTextBox);
+                Snackbar.MessageQueue?.Enqueue("Необходимо построить маршрут для расчета расстояния!");
                 return;
             }
 
-            int waitingTimeMin = 0;
-            if (!string.IsNullOrEmpty(WaitingTimeTextBox.Text))
+            if (_distanceKm > 500)
             {
-                if (!int.TryParse(WaitingTimeTextBox.Text, out waitingTimeMin) || waitingTimeMin < 0)
-                {
-                    Snackbar.MessageQueue?.Enqueue("Введите корректное время ожидания (неотрицательное число)!");
-                    ShakeElement(WaitingTimeTextBox);
-                    return;
-                }
+                Snackbar.MessageQueue?.Enqueue("Расстояние слишком большое! Максимально допустимое расстояние — 500 км.");
+                return;
             }
 
             if (TariffCombo.SelectedItem is Tariff selectedTariff)
             {
-                decimal baseCost = selectedTariff.BasePrice + (selectedTariff.PricePerKm * (decimal)distanceKm);
-                decimal waitingPenalty = waitingTimeMin * selectedTariff.WaitingPenaltyPerMin;
-                _calculatedCost = baseCost + waitingPenalty;
+                decimal baseCost = selectedTariff.BasePrice + (selectedTariff.PricePerKm * (decimal)_distanceKm);
+                _calculatedCost = baseCost;
 
                 if (_currentOrder?.PromoCode != null)
                 {
                     decimal discount = _calculatedCost * ((decimal)_currentOrder.PromoCode.DiscountPercent / 100m);
                     _calculatedCost -= discount;
+                    // Убедимся, что информация о промокоде отображается
+                    PromoCodeInfoTextBlock.Text = $"Промокод '{_currentOrder.PromoCode.Code}' применён (-{_currentOrder.PromoCode.DiscountPercent}%)";
+                    PromoCodeInfoTextBlock.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    // Если промокод не применён, скрываем информацию
+                    PromoCodeInfoTextBlock.Text = "";
+                    PromoCodeInfoTextBlock.Visibility = Visibility.Collapsed;
                 }
 
                 CostTextBlock.Text = $"Стоимость: {Math.Round(_calculatedCost, 2)} ₽";
@@ -1051,43 +902,49 @@ namespace TaxiGO
             _currentOrder.PromoCodeId = promo.PromoCodeId;
             _currentOrder.PromoCode = promo;
 
+            // Показываем информацию о промокоде рядом с ценой
+            PromoCodeInfoTextBlock.Text = $"Промокод '{promoCode}' применён (-{promo.DiscountPercent}%)";
+            PromoCodeInfoTextBlock.Visibility = Visibility.Visible;
+
             Snackbar.MessageQueue?.Enqueue($"Промокод {promoCode} применён! Скидка: {promo.DiscountPercent}%");
             CalculateCost_Click(sender, e);
         }
 
         private void OrderTaxi_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(StartPoint.Text) || string.IsNullOrEmpty(EndPoint.Text) ||
-                string.IsNullOrEmpty(DistanceTextBox.Text) || TariffCombo.SelectedItem == null)
+            if (string.IsNullOrEmpty(StartPoint.Text) || string.IsNullOrEmpty(EndPoint.Text) || TariffCombo.SelectedItem == null)
             {
                 Snackbar.MessageQueue?.Enqueue("Заполните все обязательные поля!");
                 ShakeElement(StartPoint);
                 ShakeElement(EndPoint);
-                ShakeElement(DistanceTextBox);
                 ShakeElement(TariffCombo);
                 return;
             }
 
-            if (!double.TryParse(DistanceTextBox.Text, out double distanceKm) || distanceKm <= 0)
+            if (PaymentMethodCombo.SelectedItem == null)
             {
-                Snackbar.MessageQueue?.Enqueue("Введите корректное расстояние (положительное число)!");
-                ShakeElement(DistanceTextBox);
+                Snackbar.MessageQueue?.Enqueue("Выберите способ оплаты!");
+                ShakeElement(PaymentMethodCombo);
                 return;
             }
 
-            int waitingTimeMin = 0;
-            if (!string.IsNullOrEmpty(WaitingTimeTextBox.Text))
+            if (_distanceKm <= 0)
             {
-                if (!int.TryParse(WaitingTimeTextBox.Text, out waitingTimeMin) || waitingTimeMin < 0)
-                {
-                    Snackbar.MessageQueue?.Enqueue("Введите корректное время ожидания (неотрицательное число)!");
-                    ShakeElement(WaitingTimeTextBox);
-                    return;
-                }
+                Snackbar.MessageQueue?.Enqueue("Необходимо построить маршрут для расчета расстояния!");
+                return;
+            }
+
+            if (_distanceKm > 500)
+            {
+                Snackbar.MessageQueue?.Enqueue("Расстояние слишком большое! Максимально допустимое расстояние — 500 км.");
+                return;
             }
 
             if (TariffCombo.SelectedItem is Tariff selectedTariff)
             {
+                int? promoCodeId = _currentOrder?.PromoCodeId;
+                PromoCode? promoCode = _currentOrder?.PromoCode;
+
                 _currentOrder = new Order
                 {
                     ClientId = _userId,
@@ -1097,30 +954,74 @@ namespace TaxiGO
                     Tariff = selectedTariff,
                     Status = "Pending",
                     OrderTime = DateTime.Now,
-                    DistanceKm = (decimal)distanceKm,
-                    WaitingTimeMin = waitingTimeMin,
-                    WaitingPenalty = waitingTimeMin * selectedTariff.WaitingPenaltyPerMin,
+                    DistanceKm = (decimal)_distanceKm,
                     Cost = _calculatedCost
                 };
 
-                if (_currentOrder.PromoCodeId != null)
+                if (promoCodeId.HasValue)
                 {
-                    _currentOrder.PromoCodeId = _currentOrder.PromoCodeId;
-                    _currentOrder.PromoCode = _context?.PromoCodes?.FirstOrDefault(p => p.PromoCodeId == _currentOrder.PromoCodeId);
+                    _currentOrder.PromoCodeId = promoCodeId;
+                    _currentOrder.PromoCode = promoCode;
                 }
 
-                if (_context?.Orders != null)
+                if (_context == null)
                 {
-                    _context.Orders.Add(_currentOrder);
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                    return;
+                }
+
+                try
+                {
+                    // Сначала добавляем заказ в таблицу Orders и сохраняем, чтобы получить OrderId
+                    _context.Orders?.Add(_currentOrder);
                     _context.SaveChanges();
-                    Snackbar.MessageQueue?.Enqueue("Заказ успешно создан!");
 
-                    ClearMapButton_Click(sender, e);
-                    LoadOrderHistory();
+                    // Теперь, когда у _currentOrder есть сгенерированный OrderId, создаём запись в OrderStatusHistories
+                    var statusHistory = new OrderStatusHistory
+                    {
+                        OrderId = _currentOrder.OrderId, // Теперь OrderId корректный
+                        Status = "Pending",
+                        ChangeTime = DateTime.Now,
+                        ChangedByUserId = _userId
+                    };
+                    _context.OrderStatusHistories?.Add(statusHistory);
+                    _context.SaveChanges();
+
+                    // Создаём запись в Payments
+                    if (PaymentMethodCombo.SelectedItem is PaymentMethod selectedPaymentMethod)
+                    {
+                        var payment = new Payment
+                        {
+                            OrderId = _currentOrder.OrderId,
+                            Amount = _calculatedCost,
+                            PaymentTime = DateTime.Now,
+                            PaymentMethodId = selectedPaymentMethod.PaymentMethodId
+                        };
+                        _context.Payments?.Add(payment);
+                        _context.SaveChanges();
+
+                        // Обновляем статус оплаты в заказе
+                        _currentOrder.IsPaid = true;
+                        _context.SaveChanges();
+
+                        Snackbar.MessageQueue?.Enqueue("Заказ успешно создан!");
+                        ClearMapButton_Click(sender, e);
+                        LoadOrderHistory();
+                    }
+                    else
+                    {
+                        Snackbar.MessageQueue?.Enqueue("Ошибка: Выбранный способ оплаты недействителен.");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Snackbar.MessageQueue?.Enqueue("Ошибка: Не удалось создать заказ.");
+                    Snackbar.MessageQueue?.Enqueue($"Ошибка при создании заказа: {ex.Message}");
+                    // Если произошла ошибка, можно откатить изменения, удалив заказ
+                    if (_currentOrder.OrderId != 0)
+                    {
+                        _context.Orders?.Remove(_currentOrder);
+                        _context.SaveChanges();
+                    }
                 }
             }
             else
@@ -1133,6 +1034,13 @@ namespace TaxiGO
         {
             if (sender is Button button && button.Tag is int orderId)
             {
+                // Запрашиваем подтверждение у пользователя
+                var result = MessageBox.Show("Вы уверены, что хотите отменить заказ?", "Подтверждение отмены", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result != MessageBoxResult.Yes)
+                {
+                    return; // Если пользователь отказался, прерываем выполнение
+                }
+
                 if (_context?.Orders != null)
                 {
                     var order = _context.Orders.FirstOrDefault(o => o.OrderId == orderId);
@@ -1152,6 +1060,88 @@ namespace TaxiGO
                 else
                 {
                     Snackbar.MessageQueue?.Enqueue("Ошибка: Не удалось отменить заказ.");
+                }
+            }
+        }
+
+        private void PayOrder_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.Tag is int orderId)
+            {
+                if (_context?.Orders == null || _context?.Payments == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: база данных недоступна.");
+                    return;
+                }
+
+                var order = _context.Orders.FirstOrDefault(o => o.OrderId == orderId);
+                var payment = _context.Payments.FirstOrDefault(p => p.OrderId == orderId);
+
+                if (order == null || payment == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: Заказ или платёж не найден.");
+                    return;
+                }
+
+                // Проверяем, можно ли оплатить заказ (например, статус "Pending" или "Accepted")
+                if (order.Status != "Pending" && order.Status != "Accepted")
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: Заказ нельзя оплатить в текущем статусе.");
+                    return;
+                }
+
+                // Здесь могла бы быть интеграция с платёжной системой, но для примера просто подтверждаем оплату
+                payment.PaymentTime = DateTime.Now;
+                order.IsPaid = true; // Обновляем статус оплаты в заказе
+                _context.SaveChanges();
+
+                Snackbar.MessageQueue?.Enqueue($"Заказ #{orderId} успешно оплачен!");
+                LoadOrderHistory();
+            }
+        }
+
+        private void OrderTimer_Tick(object? sender, EventArgs e)
+        {
+            if (_context?.Orders == null) return;
+
+            foreach (var order in _orders.Where(o => o.Status == "Pending"))
+            {
+                if (order.OrderTime == null) continue;
+
+                if (!_orderTimeRemaining.ContainsKey(order.OrderId))
+                {
+                    var timeElapsed = DateTime.Now - order.OrderTime.Value;
+                    var timeRemaining = TimeSpan.FromMinutes(20) - timeElapsed;
+                    _orderTimeRemaining[order.OrderId] = timeRemaining > TimeSpan.Zero ? timeRemaining : TimeSpan.Zero;
+                }
+
+                if (_orderTimeRemaining[order.OrderId] > TimeSpan.Zero)
+                {
+                    _orderTimeRemaining[order.OrderId] = _orderTimeRemaining[order.OrderId].Subtract(TimeSpan.FromSeconds(1));
+                    order.TimeRemaining = _orderTimeRemaining[order.OrderId].ToString(@"mm\:ss");
+                    order.TimerExpired = false;
+                }
+                else
+                {
+                    order.TimeRemaining = "00:00";
+                    order.TimerExpired = true;
+                    if (order.Status == "Pending")
+                    {
+                        order.Status = "Canceled";
+                        order.OrderCompletionTime = DateTime.Now;
+
+                        var statusHistory = new OrderStatusHistory
+                        {
+                            OrderId = order.OrderId,
+                            Status = "Canceled",
+                            ChangeTime = DateTime.Now,
+                            ChangedByUserId = _userId
+                        };
+                        _context.OrderStatusHistories?.Add(statusHistory);
+
+                        _context.SaveChanges();
+                        Snackbar.MessageQueue?.Enqueue($"Заказ #{order.OrderId} отменён: время ожидания истекло.");
+                    }
                 }
             }
         }
@@ -1184,21 +1174,94 @@ namespace TaxiGO
 
         public void LoadOrderHistory()
         {
-            if (_context?.Orders != null)
+            if (_context == null)
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка: _context не инициализирован.");
+                return;
+            }
+
+            if (_context.Orders == null)
+            {
+                Snackbar.MessageQueue?.Enqueue("Ошибка: _context.Orders не инициализирован.");
+                return;
+            }
+
+            try
             {
                 var orders = _context.Orders
                     .Include(o => o.Tariff)
                     .Include(o => o.PromoCode)
                     .Include(o => o.Driver)
-                    .ThenInclude(d => d!.Vehicle)
+                    .ThenInclude(d => d != null ? d.Vehicle : null)
+                    .Include(o => o.Payments)
                     .Where(o => o.ClientId == _userId)
                     .OrderByDescending(o => o.OrderTime)
                     .ToList();
-                OrderHistoryList.ItemsSource = orders;
+
+                if (orders == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: Список заказов равен null.");
+                    return;
+                }
+
+                foreach (var order in orders)
+                {
+                    // Проверяем Payments
+                    if (order.Payments == null)
+                    {
+                        Snackbar.MessageQueue?.Enqueue($"Заказ #{order.OrderId}: Payments равен null.");
+                        order.Payments = new List<Payment>(); // Инициализируем пустой список, чтобы избежать ошибки
+                    }
+                    order.IsPaid = order.Payments.Any(p => p != null && p.PaymentTime != null);
+
+                    if (order.Status == "Pending" && order.OrderTime.HasValue)
+                    {
+                        TimeSpan timeSinceOrder = DateTime.Now - order.OrderTime.Value;
+                        TimeSpan maxWaitTime = TimeSpan.FromMinutes(20);
+
+                        if (timeSinceOrder < maxWaitTime)
+                        {
+                            TimeSpan remaining = maxWaitTime - timeSinceOrder;
+                            order.TimeRemaining = $"{remaining.Minutes:D2}:{remaining.Seconds:D2}";
+                            order.TimerExpired = false;
+
+                            if (!_orderTimeRemaining.ContainsKey(order.OrderId))
+                            {
+                                _orderTimeRemaining[order.OrderId] = remaining;
+                            }
+                        }
+                        else
+                        {
+                            order.TimeRemaining = "00:00";
+                            order.TimerExpired = true;
+                        }
+                    }
+                    else
+                    {
+                        order.TimeRemaining = "—";
+                        order.TimerExpired = false;
+                    }
+                }
+
+                // Проверяем, что _orders не null, и инициализируем, если это так
+                if (_orders == null)
+                {
+                    Snackbar.MessageQueue?.Enqueue("Ошибка: _orders не инициализирован. Инициализируем заново.");
+                    _orders = new ObservableCollection<Order>();
+                }
+
+                _orders.Clear();
+                foreach (var order in orders)
+                {
+                    _orders.Add(order);
+                }
+
+                OrderHistoryList.Tag = "InitialLoad";
+                OrderHistoryList.ItemsSource = _orders;
             }
-            else
+            catch (Exception ex)
             {
-                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки истории заказов.");
+                Snackbar.MessageQueue?.Enqueue($"Ошибка загрузки истории заказов: {ex.Message}");
             }
         }
 
@@ -1494,6 +1557,33 @@ namespace TaxiGO
                     DragMove();
                 }
             }
+        }
+        private void ResetOrderTaxiTab(object sender, RoutedEventArgs e)
+        {
+            ClearMapButton_Click(sender, e);
+            // Сбрасываем масштаб и позицию карты на Санкт-Петербург
+            MapControl.Zoom = 12; // Как в InitializeMap
+            MapControl.Position = new PointLatLng(59.9343, 30.3351); // Санкт-Петербург, как в InitializeMap
+                                                                     // Сбрасываем прокрутку формы заказа
+            OrderTaxiScrollViewer.ScrollToTop();
+        }
+
+        private void ResetOrderHistoryTab()
+        {
+            LoadOrderHistory();
+            // Сбрасываем прокрутку списка заказов
+            OrderHistoryScrollViewer.ScrollToTop();
+        }
+
+        private void ResetProfileTab(object sender, RoutedEventArgs e)
+        {
+            if (_isEditingProfile)
+            {
+                CancelEdit_Click(sender, e);
+            }
+            LoadProfile();
+            // Сбрасываем прокрутку профиля
+            ProfileScrollViewer.ScrollToTop();
         }
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)

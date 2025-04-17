@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Microsoft.Extensions.DependencyInjection;
+using TaxiGO.Services;
 
 namespace TaxiGO
 {
@@ -76,9 +77,9 @@ namespace TaxiGO
                 // Открываем соответствующее окно в зависимости от роли
                 Window nextWindow = _role switch
                 {
-                    "Client" => new ClientWindow(_userName, _userId, _scopeFactory),
-                    "Driver" => new DriverWindow(_userName, _userId, _scopeFactory),
-                    "Admin" => new AdminWindow(_userName, _scopeFactory),
+                    "Client" => new ClientWindow(_userName, _userId, _scopeFactory, App.ServiceProvider.GetRequiredService<IGeocodingService>()),
+                    "Driver" => new DriverWindow(_userName, _userId, _scopeFactory, App.ServiceProvider.GetRequiredService<IGeocodingService>()),
+                    "Admin" => new AdminWindow(_userName, _userId, _scopeFactory), // Добавлен _userId
                     "Dispatcher" => new DispatcherWindow(_userName, _scopeFactory),
                     _ => throw new NotSupportedException("Неизвестная роль пользователя")
                 };

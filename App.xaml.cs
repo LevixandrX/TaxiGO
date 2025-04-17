@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Windows;
 using TaxiGO.Models;
+using TaxiGO.Services;
 
 namespace TaxiGO
 {
@@ -35,6 +36,9 @@ namespace TaxiGO
 
         private void ConfigureServices(IServiceCollection services)
         {
+            // Регистрируем IConfiguration в контейнере
+            services.AddSingleton<IConfiguration>(Configuration);
+
             string? connectionString = Configuration.GetConnectionString("TaxiGoContext");
             if (string.IsNullOrEmpty(connectionString))
             {
@@ -44,10 +48,16 @@ namespace TaxiGO
             services.AddDbContext<TaxiGoContext>(options =>
                 options.UseSqlServer(connectionString), ServiceLifetime.Scoped);
 
-            // Регистрируем IServiceScopeFactory для создания новых scope
+            // Регистрируем IServiceScopeFactory
             services.AddSingleton<IServiceScopeFactory>(provider => provider.GetRequiredService<IServiceProvider>().GetRequiredService<IServiceScopeFactory>());
 
-            // Регистрируем окна как Transient, чтобы каждый раз создавался новый экземпляр
+            // Добавляем MemoryCache
+            services.AddMemoryCache();
+
+            // Регистрируем IGeocodingService
+            services.AddSingleton<IGeocodingService, YandexGeocodingService>();
+
+            // Регистрируем окна как Transient
             services.AddTransient<MainWindow>();
             services.AddTransient<ClientWindow>();
             services.AddTransient<DriverWindow>();

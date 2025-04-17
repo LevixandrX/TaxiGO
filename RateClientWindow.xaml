@@ -1,0 +1,507 @@
+﻿<Window x:Class="TaxiGO.RateClientWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="TaxiGO - Оценка клиента" 
+        Height="420" 
+        MinHeight="350"
+        Width="350" 
+        MinWidth="300"
+        WindowStartupLocation="CenterOwner" 
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent">
+    <Window.Resources>
+        <!-- Стиль для кнопки с анимацией увеличения и пульсации -->
+        <Style x:Key="AnimatedButtonStyle" TargetType="Button">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FF42A5F5" Offset="0"/>
+                        <GradientStop Color="#FF7C4DFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#FF42A5F5" Direction="320" ShadowDepth="5" Opacity="0.5"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border" CornerRadius="20" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#FF7C4DFF" Offset="0"/>
+                                            <GradientStop Color="#FF42A5F5" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для кнопки "Назад" -->
+        <Style x:Key="BackButtonStyle" TargetType="Button">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FF9E9E9E" Offset="0"/>
+                        <GradientStop Color="#FF616161" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#FF9E9E9E" Direction="320" ShadowDepth="5" Opacity="0.5"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border" CornerRadius="20" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#FF616161" Offset="0"/>
+                                            <GradientStop Color="#FF9E9E9E" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для интерактивных звёзд -->
+        <Style x:Key="StarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderThickness="0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для заголовков с иконкой -->
+        <Style x:Key="HeaderWithIconStyle" TargetType="StackPanel">
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Opacity" Value="0"/>
+            <Style.Triggers>
+                <EventTrigger RoutedEvent="Loaded">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.5"/>
+                            <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                             From="10" To="0" Duration="0:0:0.5">
+                                <DoubleAnimation.EasingFunction>
+                                    <CubicEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <Grid x:Name="MainGrid">
+        <Grid.Clip>
+            <RectangleGeometry x:Name="WindowClip" RadiusX="20" RadiusY="20" Rect="0,0,350,420"/>
+        </Grid.Clip>
+        <Border x:Name="MainBorder" CornerRadius="20">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FF1A1A1A" Offset="0"/>
+                    <GradientStop Color="#FF2E2E2E" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid x:Name="InnerGrid" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <!-- Панель заголовка -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Логотип -->
+                    <RowDefinition Height="*"/>
+                    <!-- Основное содержимое -->
+                </Grid.RowDefinitions>
+
+                <!-- Панель заголовка -->
+                <Grid Grid.Row="0" Background="Transparent" MouseDown="TitleBar_MouseDown">
+                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,5,5,0">
+                        <Button x:Name="MinimizeButton" Content="—" Width="30" Height="30" Margin="0,0,5,0" Foreground="#FFE0E0E0" Click="MinimizeButton_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="FontSize" Value="16"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}" BorderThickness="0">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF616161"/>
+                                                        <Setter Property="Foreground" Value="#FFE0E0E0"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button x:Name="CloseButton" Content="×" Width="30" Height="30" Foreground="#FFE0E0E0" Click="CloseButton_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="FontSize" Value="16"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}" BorderThickness="0">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF8B0000"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Логотип -->
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,20,0,20">
+                    <Border x:Name="LogoBorder" Width="80" Height="80" Margin="0,0,0,10">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#FF42A5F5" Offset="0"/>
+                                <GradientStop Color="#FF7C4DFF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.Clip>
+                            <EllipseGeometry RadiusX="40" RadiusY="40" Center="40,40"/>
+                        </Border.Clip>
+                        <Border.Effect>
+                            <DropShadowEffect x:Name="LogoShadow" BlurRadius="20" ShadowDepth="0" Opacity="0.8" Color="#FF42A5F5"/>
+                        </Border.Effect>
+                        <Grid>
+                            <materialDesign:PackIcon Kind="Star" Width="50" Height="50" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <materialDesign:PackIcon.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" CenterX="25" CenterY="25"/>
+                                </materialDesign:PackIcon.RenderTransform>
+                                <materialDesign:PackIcon.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.7" To="1" Duration="0:0:1.5" AutoReverse="True"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" 
+                                                                From="1" To="1.1" Duration="0:0:1.5" AutoReverse="True"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" 
+                                                                From="1" To="1.1" Duration="0:0:1.5" AutoReverse="True"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </materialDesign:PackIcon.Triggers>
+                            </materialDesign:PackIcon>
+                        </Grid>
+                    </Border>
+                    <TextBlock x:Name="TitleText" Text="Оценка клиента" FontSize="20" FontWeight="Bold" FontFamily="Segoe UI" Foreground="White" HorizontalAlignment="Center">
+                        <TextBlock.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:1"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                                        From="20" To="0" Duration="0:0:1">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </TextBlock.Triggers>
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform Y="0"/>
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Основное содержимое -->
+                <Grid Grid.Row="2" x:Name="ContentPanel">
+                    <!-- Этап 1: Оценка звёздами -->
+                    <StackPanel x:Name="RatingPanel" HorizontalAlignment="Center" Visibility="Visible">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Opacity" Value="0"/>
+                                <Style.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.5"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                                                From="20" To="0" Duration="0:0:0.5">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut"/>
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform X="0" Y="0"/>
+                        </StackPanel.RenderTransform>
+
+                        <!-- Заголовок с иконкой для рейтинга -->
+                        <StackPanel Style="{StaticResource HeaderWithIconStyle}">
+                            <materialDesign:PackIcon Kind="Star" Width="20" Height="20" Foreground="#FFFFC107" Margin="0,0,5,0" VerticalAlignment="Center">
+                                <materialDesign:PackIcon.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" CenterX="10" CenterY="10"/>
+                                </materialDesign:PackIcon.RenderTransform>
+                                <materialDesign:PackIcon.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.7" To="1" Duration="0:0:1" AutoReverse="True"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" 
+                                                                From="1" To="1.1" Duration="0:0:1" AutoReverse="True"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" 
+                                                                From="1" To="1.1" Duration="0:0:1" AutoReverse="True"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </materialDesign:PackIcon.Triggers>
+                            </materialDesign:PackIcon>
+                            <TextBlock Text="Как вам клиент?" FontSize="14" FontFamily="Segoe UI" Foreground="#FFE0E0E0" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Поле для рейтинга (звёзды) -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,15">
+                            <Button x:Name="Star1Button" Click="StarButton_Click" Tag="1" Style="{StaticResource StarButtonStyle}" MouseEnter="StarButton_MouseEnter" MouseLeave="StarButton_MouseLeave">
+                                <materialDesign:PackIcon x:Name="Star1" Kind="StarOutline" Width="40" Height="40" Foreground="#FF888888"/>
+                            </Button>
+                            <Button x:Name="Star2Button" Click="StarButton_Click" Tag="2" Style="{StaticResource StarButtonStyle}" MouseEnter="StarButton_MouseEnter" MouseLeave="StarButton_MouseLeave">
+                                <materialDesign:PackIcon x:Name="Star2" Kind="StarOutline" Width="40" Height="40" Foreground="#FF888888"/>
+                            </Button>
+                            <Button x:Name="Star3Button" Click="StarButton_Click" Tag="3" Style="{StaticResource StarButtonStyle}" MouseEnter="StarButton_MouseEnter" MouseLeave="StarButton_MouseLeave">
+                                <materialDesign:PackIcon x:Name="Star3" Kind="StarOutline" Width="40" Height="40" Foreground="#FF888888"/>
+                            </Button>
+                            <Button x:Name="Star4Button" Click="StarButton_Click" Tag="4" Style="{StaticResource StarButtonStyle}" MouseEnter="StarButton_MouseEnter" MouseLeave="StarButton_MouseLeave">
+                                <materialDesign:PackIcon x:Name="Star4" Kind="StarOutline" Width="40" Height="40" Foreground="#FF888888"/>
+                            </Button>
+                            <Button x:Name="Star5Button" Click="StarButton_Click" Tag="5" Style="{StaticResource StarButtonStyle}" MouseEnter="StarButton_MouseEnter" MouseLeave="StarButton_MouseLeave">
+                                <materialDesign:PackIcon x:Name="Star5" Kind="StarOutline" Width="40" Height="40" Foreground="#FF888888"/>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Кнопка "Далее" -->
+                        <Button x:Name="NextButton" Content="Далее" Width="150" Height="40" Margin="0,20,0,10" Click="NextButton_Click" Style="{StaticResource AnimatedButtonStyle}">
+                            <Button.RenderTransform>
+                                <ScaleTransform ScaleX="1" ScaleY="1" CenterX="75" CenterY="20"/>
+                            </Button.RenderTransform>
+                            <Button.Triggers>
+                                <EventTrigger RoutedEvent="MouseEnter">
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" To="1.1" Duration="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" To="1.1" Duration="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.8" Duration="0:0:0.5" AutoReverse="True" RepeatBehavior="Forever"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                                <EventTrigger RoutedEvent="MouseLeave">
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="0:0:0.2"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Button.Triggers>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Этап 2: Комментарий -->
+                    <StackPanel x:Name="CommentPanel" HorizontalAlignment="Center" Visibility="Collapsed">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Opacity" Value="0"/>
+                                <Style.Triggers>
+                                    <Trigger Property="Visibility" Value="Visible">
+                                        <Trigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.5"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                                                    From="20" To="0" Duration="0:0:0.5">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut"/>
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </Trigger.EnterActions>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <StackPanel.RenderTransform>
+                            <TranslateTransform X="0" Y="0"/>
+                        </StackPanel.RenderTransform>
+
+                        <!-- Заголовок с иконкой для комментария -->
+                        <StackPanel Style="{StaticResource HeaderWithIconStyle}">
+                            <materialDesign:PackIcon Kind="Comment" Width="20" Height="20" Foreground="#FF42A5F5" Margin="0,0,5,0" VerticalAlignment="Center">
+                                <materialDesign:PackIcon.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" CenterX="10" CenterY="10"/>
+                                </materialDesign:PackIcon.RenderTransform>
+                                <materialDesign:PackIcon.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.7" To="1" Duration="0:0:1" AutoReverse="True"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" 
+                                                                From="1" To="1.1" Duration="0:0:1" AutoReverse="True"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" 
+                                                                From="1" To="1.1" Duration="0:0:1" AutoReverse="True"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </materialDesign:PackIcon.Triggers>
+                            </materialDesign:PackIcon>
+                            <TextBlock Text="Оставьте отзыв" FontSize="14" FontFamily="Segoe UI" Foreground="#FFE0E0E0" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Поле для комментария -->
+                        <TextBox x:Name="CommentTextBox" 
+                                 Width="250" 
+                                 Height="80" 
+                                 FontSize="16" 
+                                 Foreground="#FFFFFFFF" 
+                                 materialDesign:HintAssist.Hint="Ваш отзыв (по желанию)" 
+                                 materialDesign:HintAssist.Foreground="#FF888888"
+                                 materialDesign:HintAssist.FloatingOffset="0,-20"
+                                 TextWrapping="Wrap" 
+                                 AcceptsReturn="True"
+                                 Style="{StaticResource MaterialDesignFloatingHintTextBox}">
+                            <TextBox.Resources>
+                                <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
+                                    <Setter Property="CaretBrush" Value="#FF42A5F5"/>
+                                    <Setter Property="SelectionBrush" Value="#FF42A5F5"/>
+                                    <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                                    <Setter Property="BorderBrush" Value="#FF888888"/>
+                                    <Setter Property="Background" Value="#FF2E2E2E"/>
+                                    <Setter Property="Padding" Value="10,0"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsFocused" Value="True">
+                                            <Setter Property="BorderBrush" Value="#FF42A5F5"/>
+                                            <Setter Property="BorderThickness" Value="0,0,0,3"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Resources>
+                        </TextBox>
+
+                        <!-- Кнопки действия -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,10">
+                            <Button x:Name="BackButton" Content="Назад" Width="100" Height="40" Margin="0,0,10,0" Click="BackButton_Click" Style="{StaticResource BackButtonStyle}">
+                                <Button.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" CenterX="50" CenterY="20"/>
+                                </Button.RenderTransform>
+                                <Button.Triggers>
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" To="1.1" Duration="0:0:0.2"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" To="1.1" Duration="0:0:0.2"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.8" Duration="0:0:0.5" AutoReverse="True" RepeatBehavior="Forever"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                    <EventTrigger RoutedEvent="MouseLeave">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.2"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="0:0:0.2"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Button.Triggers>
+                            </Button>
+                            <Button x:Name="SubmitButton" Content="Отправить" Width="150" Height="40" Click="SubmitButton_Click" Style="{StaticResource AnimatedButtonStyle}">
+                                <Button.RenderTransform>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" CenterX="75" CenterY="20"/>
+                                </Button.RenderTransform>
+                                <Button.Triggers>
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" To="1.1" Duration="0:0:0.2"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" To="1.1" Duration="0:0:0.2"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.8" Duration="0:0:0.5" AutoReverse="True" RepeatBehavior="Forever"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                    <EventTrigger RoutedEvent="MouseLeave">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.2"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="0:0:0.2"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Button.Triggers>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

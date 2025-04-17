@@ -27,6 +27,8 @@ namespace TaxiGO.Models
 
         public virtual DbSet<Payment>? Payments { get; set; }
 
+        public virtual DbSet<PaymentMethod>? PaymentMethods { get; set; } // Добавлено
+
         public virtual DbSet<PromoCode>? PromoCodes { get; set; }
 
         public virtual DbSet<Tariff>? Tariffs { get; set; }
@@ -101,6 +103,7 @@ namespace TaxiGO.Models
                 entity.Property(e => e.Status).HasMaxLength(20);
                 entity.Property(e => e.TariffId).HasColumnName("TariffID");
                 entity.Property(e => e.WaitingPenalty).HasColumnType("decimal(10, 2)");
+                entity.Property(e => e.IsPaid).HasDefaultValue(false);
 
                 entity.HasOne(d => d.Client).WithMany(p => p.OrderClients)
                     .HasForeignKey(d => d.ClientId)
@@ -146,6 +149,20 @@ namespace TaxiGO.Models
                     .HasConstraintName("FK__OrderStat__Order__19DFD96B");
             });
 
+            modelBuilder.Entity<PaymentMethod>(entity =>
+            {
+                entity.HasKey(e => e.PaymentMethodId).HasName("PK__PaymentMethods__A4D6C56C");
+
+                entity.ToTable("PaymentMethods");
+
+                entity.HasIndex(e => e.MethodName, "UQ__PaymentMethods__MethodName").IsUnique();
+
+                entity.Property(e => e.PaymentMethodId).HasColumnName("PaymentMethodID");
+                entity.Property(e => e.MethodName).HasMaxLength(20).IsRequired();
+                entity.Property(e => e.Description).HasMaxLength(255);
+                entity.Property(e => e.IsActive).HasDefaultValue(true);
+            });
+
             modelBuilder.Entity<Payment>(entity =>
             {
                 entity.HasKey(e => e.PaymentId).HasName("PK__Payments__9B556A58558D2D3D");
@@ -153,7 +170,7 @@ namespace TaxiGO.Models
                 entity.Property(e => e.PaymentId).HasColumnName("PaymentID");
                 entity.Property(e => e.Amount).HasColumnType("decimal(10, 2)");
                 entity.Property(e => e.OrderId).HasColumnName("OrderID");
-                entity.Property(e => e.PaymentMethod).HasMaxLength(20);
+                entity.Property(e => e.PaymentMethodId).HasColumnName("PaymentMethodID");
                 entity.Property(e => e.PaymentTime)
                     .HasDefaultValueSql("(getdate())")
                     .HasColumnType("datetime");
@@ -162,6 +179,11 @@ namespace TaxiGO.Models
                     .HasForeignKey(d => d.OrderId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
                     .HasConstraintName("FK__Payments__OrderI__10566F31");
+
+                entity.HasOne(d => d.PaymentMethod).WithMany(p => p.Payments)
+                    .HasForeignKey(d => d.PaymentMethodId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK__Payments__PaymentMethodID");
             });
 
             modelBuilder.Entity<PromoCode>(entity =>

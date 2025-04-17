@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         Title="WelcomeWindow" 
-        Height="400" 
-        Width="600"
+        Height="450" 
+        Width="650"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" 
         AllowsTransparency="True" 
@@ -13,37 +13,99 @@
         <!-- Анимация для свечения -->
         <Storyboard x:Key="GlowAnimation" RepeatBehavior="Forever">
             <DoubleAnimation Storyboard.TargetProperty="Opacity" 
-                            From="0.3" To="0.6" Duration="0:0:1.5" AutoReverse="True"/>
+                            From="0.4" To="0.8" Duration="0:0:1.8" AutoReverse="True"/>
+        </Storyboard>
+        <!-- Анимация для частиц -->
+        <Storyboard x:Key="ParticleAnimation" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                            From="0" To="-50" Duration="0:0:2" AutoReverse="False"/>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity" 
+                            From="0.6" To="0" Duration="0:0:2" AutoReverse="False"/>
         </Storyboard>
     </Window.Resources>
 
     <Grid>
         <!-- Обрезаем прозрачные уголки -->
         <Grid.Clip>
-            <RectangleGeometry Rect="0,0,600,400" RadiusX="30" RadiusY="30"/>
+            <RectangleGeometry Rect="0,0,650,450" RadiusX="30" RadiusY="30"/>
         </Grid.Clip>
 
         <!-- Основной фон -->
-        <Border CornerRadius="30">
+        <Border x:Name="MainBorder" CornerRadius="30">
             <Border.Background>
-                <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.7" RadiusY="0.7">
-                    <GradientStop Color="#FF252525" Offset="0"/>
-                    <GradientStop Color="#FF1A1A1A" Offset="1"/>
+                <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.8" RadiusY="0.8">
+                    <GradientStop Color="#FF1E1E1E" Offset="0"/>
+                    <GradientStop Color="#FF101010" Offset="1"/>
                 </RadialGradientBrush>
             </Border.Background>
             <Border.Effect>
-                <DropShadowEffect Color="#FF42A5F5" BlurRadius="20" ShadowDepth="0" Opacity="0.5"/>
+                <DropShadowEffect Color="#FF42A5F5" BlurRadius="30" ShadowDepth="0" Opacity="0.6"/>
             </Border.Effect>
 
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
+                <!-- Частицы для эффекта -->
+                <Canvas Grid.Row="0" Grid.RowSpan="3" ClipToBounds="True">
+                    <Ellipse x:Name="Particle1" Width="6" Height="6" Fill="#FF42A5F5" Opacity="0.6" Canvas.Left="100" Canvas.Top="400">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform/>
+                        </Ellipse.RenderTransform>
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard BeginTime="0:0:0">
+                                        <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                                        From="0" To="-100" Duration="0:0:1.5"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" 
+                                                        From="0.6" To="0" Duration="0:0:1.5"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                    <Ellipse x:Name="Particle2" Width="5" Height="5" Fill="#FF7C4DFF" Opacity="0.5" Canvas.Left="300" Canvas.Top="420">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform/>
+                        </Ellipse.RenderTransform>
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard BeginTime="0:0:0.3">
+                                        <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                                        From="0" To="-120" Duration="0:0:1.8"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" 
+                                                        From="0.5" To="0" Duration="0:0:1.8"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                    <Ellipse x:Name="Particle3" Width="7" Height="7" Fill="#FF42A5F5" Opacity="0.7" Canvas.Left="500" Canvas.Top="390">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform/>
+                        </Ellipse.RenderTransform>
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard BeginTime="0:0:0.6">
+                                        <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                                        From="0" To="-90" Duration="0:0:1.6"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" 
+                                                        From="0.7" To="0" Duration="0:0:1.6"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                </Canvas>
+
                 <!-- Иконка -->
-                <Border Grid.Row="0" Width="120" Height="120" CornerRadius="60" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Grid.Row="1" Width="140" Height="140" CornerRadius="70" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,20,0,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#FF42A5F5" Offset="0"/>
@@ -51,25 +113,25 @@
                         </LinearGradientBrush>
                     </Border.Background>
                     <Border.Effect>
-                        <DropShadowEffect x:Name="IconGlow" Color="#FF42A5F5" BlurRadius="20" ShadowDepth="0" Opacity="0.3"/>
+                        <DropShadowEffect x:Name="IconGlow" Color="#FF42A5F5" BlurRadius="30" ShadowDepth="0" Opacity="0.4"/>
                     </Border.Effect>
                     <Border.Triggers>
                         <EventTrigger RoutedEvent="Loaded">
                             <BeginStoryboard Storyboard="{StaticResource GlowAnimation}"/>
                         </EventTrigger>
                     </Border.Triggers>
-                    <materialDesign:PackIcon Kind="AccountCircle" Width="100" Height="100" Foreground="#FFE0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <materialDesign:PackIcon Kind="AccountCircle" Width="120" Height="120" Foreground="#FFE0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <materialDesign:PackIcon.RenderTransform>
-                            <ScaleTransform ScaleX="1" ScaleY="1" CenterX="50" CenterY="50"/>
+                            <ScaleTransform ScaleX="1" ScaleY="1" CenterX="60" CenterY="60"/>
                         </materialDesign:PackIcon.RenderTransform>
                         <materialDesign:PackIcon.Triggers>
                             <EventTrigger RoutedEvent="Loaded">
                                 <BeginStoryboard>
                                     <Storyboard RepeatBehavior="Forever">
                                         <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleX)" 
-                                                        From="1" To="1.05" Duration="0:0:1.5" AutoReverse="True"/>
+                                                        From="1" To="1.06" Duration="0:0:1.8" AutoReverse="True"/>
                                         <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(ScaleTransform.ScaleY)" 
-                                                        From="1" To="1.05" Duration="0:0:1.5" AutoReverse="True"/>
+                                                        From="1" To="1.06" Duration="0:0:1.8" AutoReverse="True"/>
                                     </Storyboard>
                                 </BeginStoryboard>
                             </EventTrigger>
@@ -78,22 +140,49 @@
                 </Border>
 
                 <!-- Акцентная линия -->
-                <Border Grid.Row="1" Width="200" Height="2" Margin="0,10,0,20" HorizontalAlignment="Center">
+                <Border Grid.Row="1" Width="350" Height="3" Margin="0,295,0,39" HorizontalAlignment="Center">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                             <GradientStop Color="Transparent" Offset="0"/>
-                            <GradientStop Color="#FF42A5F5" Offset="0.5"/>
+                            <GradientStop Color="#FF42A5F5" Offset="0.4"/>
+                            <GradientStop Color="#FF7C4DFF" Offset="0.6"/>
                             <GradientStop Color="Transparent" Offset="1"/>
                         </LinearGradientBrush>
                     </Border.Background>
+                    <Border.Effect>
+                        <DropShadowEffect Color="#FF42A5F5" BlurRadius="10" ShadowDepth="0" Opacity="0.5"/>
+                    </Border.Effect>
                 </Border>
 
                 <!-- Текст -->
-                <TextBlock x:Name="WelcomeText" Grid.Row="2" Text="Добро пожаловать!" FontSize="28" FontWeight="SemiBold" 
-                           FontFamily="Segoe UI" Foreground="#FFE0E0E0" HorizontalAlignment="Center" Margin="0,0,0,40">
+                <TextBlock x:Name="WelcomeText" Grid.Row="2" Text="Добро пожаловать!" FontSize="32" FontWeight="Bold" 
+                           FontFamily="Segoe UI" Foreground="#FFE0E0E0" HorizontalAlignment="Center" Margin="0,10,0,60">
                     <TextBlock.Effect>
-                        <DropShadowEffect Color="#FF42A5F5" BlurRadius="10" ShadowDepth="0" Opacity="0.6"/>
+                        <DropShadowEffect Color="#FF42A5F5" BlurRadius="15" ShadowDepth="0" Opacity="0.7"/>
                     </TextBlock.Effect>
+                    <TextBlock.Triggers>
+                        <EventTrigger RoutedEvent="Loaded">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity" 
+                                                    From="0" To="1" Duration="0:0:1.2">
+                                        <DoubleAnimation.EasingFunction>
+                                            <SineEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.Y)" 
+                                                    From="30" To="0" Duration="0:0:1.2">
+                                        <DoubleAnimation.EasingFunction>
+                                            <SineEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </TextBlock.Triggers>
+                    <TextBlock.RenderTransform>
+                        <TranslateTransform Y="0"/>
+                    </TextBlock.RenderTransform>
                 </TextBlock>
             </Grid>
         </Border>

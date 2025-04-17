@@ -17,6 +17,7 @@
         <!-- Конвертер для видимости кнопки -->
         <local:StatusToVisibilityConverter x:Key="StatusToVisibilityConverter"/>
         <local:NullToTextConverter x:Key="NullToTextConverter"/>
+        <local:BooleanToTextConverter x:Key="BooleanToTextConverter" TrueText="Оплачено" FalseText="Не оплачено"/>
 
         <!-- Анимации для переходов между вкладками (слайд) -->
         <Storyboard x:Key="SlideOutLeftAnimation">
@@ -411,6 +412,12 @@
             </Setter>
         </Style>
 
+        <Style x:Key="OrderDetailValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#FFE0E0E0"/>
+            <Setter Property="Margin" Value="10,2"/>
+        </Style>
+
         <!-- Стиль для кнопки редактирования профиля -->
         <Style x:Key="EditButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -528,6 +535,23 @@
                     <Setter Property="Margin" Value="30,20"/>
                     <Setter Property="Padding" Value="35"/>
                     <!-- Увеличены внутренние отступы -->
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Стиль для таймера -->
+        <Style x:Key="TimerTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#FFFFC107"/>
+            <Setter Property="Margin" Value="0,3,0,3"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
+                    <Setter Property="FontSize" Value="16"/>
+                </DataTrigger>
+                <!-- Если время истекло, меняем цвет на красный -->
+                <DataTrigger Binding="{Binding TimerExpired}" Value="True">
+                    <Setter Property="Foreground" Value="#FFF44336"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -730,7 +754,7 @@
                             </Border>
 
                             <!-- Форма заказа -->
-                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="0,0,15,0">
+                            <ScrollViewer x:Name="OrderTaxiScrollViewer" Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="0,0,15,0">
                                 <Border Background="#AA2E2E2E" CornerRadius="15" Margin="0,0,0,0">
                                     <Border.Effect>
                                         <DropShadowEffect Color="#FF42A5F5" BlurRadius="10" ShadowDepth="0" Opacity="0.3"/>
@@ -856,33 +880,43 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <materialDesign:PackIcon Kind="Ticket" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
-                                            <TextBox x:Name="PromoCodeTextBox" Grid.Column="1"
-                             Width="200"
-                             Height="56"
-                             FontSize="16"
-                             Foreground="#FFFFFFFF"
-                             materialDesign:HintAssist.Hint="Промокод"
-                             materialDesign:HintAssist.Foreground="#FF888888"
-                             materialDesign:HintAssist.FloatingOffset="0,-20"
-                             Style="{StaticResource MaterialDesignFloatingHintTextBox}"
-                             TextChanged="PromoCodeTextBox_TextChanged">
-                                                <TextBox.Resources>
-                                                    <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
-                                                        <Setter Property="CaretBrush" Value="#FF42A5F5"/>
-                                                        <Setter Property="SelectionBrush" Value="#FF42A5F5"/>
-                                                        <Setter Property="BorderThickness" Value="0,0,0,2"/>
-                                                        <Setter Property="BorderBrush" Value="#FF888888"/>
-                                                        <Setter Property="Background" Value="#FF2E2E2E"/>
-                                                        <Setter Property="Padding" Value="0,0,10,0"/>
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsFocused" Value="True">
-                                                                <Setter Property="BorderBrush" Value="#FF42A5F5"/>
-                                                                <Setter Property="BorderThickness" Value="0,0,0,3"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBox.Resources>
-                                            </TextBox>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBox x:Name="PromoCodeTextBox"
+                 Width="200"
+                 Height="56"
+                 FontSize="16"
+                 Foreground="#FFFFFFFF"
+                 materialDesign:HintAssist.Hint="Промокод"
+                 materialDesign:HintAssist.Foreground="#FF888888"
+                 materialDesign:HintAssist.FloatingOffset="0,-20"
+                 Style="{StaticResource MaterialDesignFloatingHintTextBox}">
+                                                    <TextBox.Resources>
+                                                        <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
+                                                            <Setter Property="CaretBrush" Value="#FF42A5F5"/>
+                                                            <Setter Property="SelectionBrush" Value="#FF42A5F5"/>
+                                                            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                                                            <Setter Property="BorderBrush" Value="#FF888888"/>
+                                                            <Setter Property="Background" Value="#FF2E2E2E"/>
+                                                            <Setter Property="Padding" Value="0,0,10,0"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsFocused" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="#FF42A5F5"/>
+                                                                    <Setter Property="BorderThickness" Value="0,0,0,3"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBox.Resources>
+                                                </TextBox>
+                                                <!-- Информация о применённом промокоде -->
+                                                <Grid Visibility="{Binding ElementName=PromoCodeInfoTextBlock, Path=Visibility}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <materialDesign:PackIcon Kind="TicketConfirmation" Width="16" Height="16" Foreground="#FF42A5F5" VerticalAlignment="Center" Margin="0,5,5,0"/>
+                                                    <TextBlock x:Name="PromoCodeInfoTextBlock" Grid.Column="1" Text="" FontSize="12" Foreground="#FF42A5F5" Margin="0,5,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                                                </Grid>
+                                            </StackPanel>
                                             <Button Grid.Column="2" x:Name="ApplyPromoCodeButton" Content="Применить" Width="120" Height="30" Margin="10,0,0,0" Click="ApplyPromoCode_Click" Style="{StaticResource ActionButtonStyle}"/>
                                         </Grid>
 
@@ -893,67 +927,7 @@
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <materialDesign:PackIcon Kind="Ruler" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
-                                            <TextBox x:Name="DistanceTextBox" Grid.Column="1"
-                             Height="56"
-                             FontSize="16"
-                             Foreground="#FFFFFFFF"
-                             materialDesign:HintAssist.Hint="Расстояние (км)"
-                             materialDesign:HintAssist.Foreground="#FF888888"
-                             materialDesign:HintAssist.FloatingOffset="0,-20"
-                             Style="{StaticResource MaterialDesignFloatingHintTextBox}"
-                             IsReadOnly="True">
-                                                <TextBox.Resources>
-                                                    <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
-                                                        <Setter Property="CaretBrush" Value="#FF42A5F5"/>
-                                                        <Setter Property="SelectionBrush" Value="#FF42A5F5"/>
-                                                        <Setter Property="BorderThickness" Value="0,0,0,2"/>
-                                                        <Setter Property="BorderBrush" Value="#FF888888"/>
-                                                        <Setter Property="Background" Value="#FF2E2E2E"/>
-                                                        <Setter Property="Padding" Value="0,0,10,0"/>
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsFocused" Value="True">
-                                                                <Setter Property="BorderBrush" Value="#FF42A5F5"/>
-                                                                <Setter Property="BorderThickness" Value="0,0,0,3"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBox.Resources>
-                                            </TextBox>
-                                        </Grid>
-
-                                        <!-- Время ожидания -->
-                                        <Grid Margin="0,0,0,15">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <materialDesign:PackIcon Kind="Clock" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
-                                            <TextBox x:Name="WaitingTimeTextBox" Grid.Column="1"
-                             Height="56"
-                             FontSize="16"
-                             Foreground="#FFFFFFFF"
-                             materialDesign:HintAssist.Hint="Время ожидания (мин)"
-                             materialDesign:HintAssist.Foreground="#FF888888"
-                             materialDesign:HintAssist.FloatingOffset="0,-20"
-                             Style="{StaticResource MaterialDesignFloatingHintTextBox}"
-                             TextChanged="WaitingTimeTextBox_TextChanged">
-                                                <TextBox.Resources>
-                                                    <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
-                                                        <Setter Property="CaretBrush" Value="#FF42A5F5"/>
-                                                        <Setter Property="SelectionBrush" Value="#FF42A5F5"/>
-                                                        <Setter Property="BorderThickness" Value="0,0,0,2"/>
-                                                        <Setter Property="BorderBrush" Value="#FF888888"/>
-                                                        <Setter Property="Background" Value="#FF2E2E2E"/>
-                                                        <Setter Property="Padding" Value="0,0,10,0"/>
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsFocused" Value="True">
-                                                                <Setter Property="BorderBrush" Value="#FF42A5F5"/>
-                                                                <Setter Property="BorderThickness" Value="0,0,0,3"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBox.Resources>
-                                            </TextBox>
+                                            <TextBlock x:Name="DistanceTextBlock" Grid.Column="1" Text="Расстояние: 0 км" FontSize="16" Foreground="#FFE0E0E0" VerticalAlignment="Center"/>
                                         </Grid>
 
                                         <!-- Стоимость поездки -->
@@ -964,6 +938,39 @@
                                             </Grid.ColumnDefinitions>
                                             <materialDesign:PackIcon Kind="CurrencyRub" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
                                             <TextBlock x:Name="CostTextBlock" Grid.Column="1" Text="Стоимость: 0 ₽" FontSize="16" Foreground="#FFE0E0E0" VerticalAlignment="Center"/>
+                                        </Grid>
+
+                                        <!-- Способ оплаты -->
+                                        <Grid Margin="0,0,0,15">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon Kind="CreditCard" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
+                                            <ComboBox x:Name="PaymentMethodCombo" Grid.Column="1"
+                                                      Height="56"
+                                                      FontSize="16"
+                                                      Foreground="#FFFFFFFF"
+                                                      materialDesign:HintAssist.Hint="Способ оплаты"
+                                                      materialDesign:HintAssist.Foreground="#FF888888"
+                                                      materialDesign:HintAssist.FloatingOffset="0,-20"
+                                                      DisplayMemberPath="MethodName"
+                                                      Style="{StaticResource MaterialDesignFloatingHintComboBox}">
+                                                <ComboBox.Resources>
+                                                    <Style TargetType="ComboBox" BasedOn="{StaticResource MaterialDesignFloatingHintComboBox}">
+                                                        <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                                                        <Setter Property="BorderBrush" Value="#FF888888"/>
+                                                        <Setter Property="Background" Value="#FF2E2E2E"/>
+                                                        <Setter Property="Padding" Value="0,0,10,0"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsFocused" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#FF42A5F5"/>
+                                                                <Setter Property="BorderThickness" Value="0,0,0,3"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ComboBox.Resources>
+                                            </ComboBox>
                                         </Grid>
 
                                         <!-- Кнопка расчёта стоимости -->
@@ -981,7 +988,7 @@
                             <Grid.RenderTransform>
                                 <TranslateTransform X="0"/>
                             </Grid.RenderTransform>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer x:Name="OrderHistoryScrollViewer" VerticalScrollBarVisibility="Auto">
                                 <ItemsControl x:Name="OrderHistoryList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -993,12 +1000,14 @@
                                                     <EventTrigger RoutedEvent="Loaded">
                                                         <BeginStoryboard>
                                                             <Storyboard>
+                                                                <!-- Анимация появления -->
                                                                 <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.4"/>
                                                                 <DoubleAnimation Storyboard.TargetProperty="(RenderTransform).(TranslateTransform.X)" From="30" To="0" Duration="0:0:0.4">
                                                                     <DoubleAnimation.EasingFunction>
                                                                         <SineEase EasingMode="EaseOut"/>
                                                                     </DoubleAnimation.EasingFunction>
                                                                 </DoubleAnimation>
+                                                                <!-- Примечание: Для управления длительностью анимации в зависимости от Tag (InitialLoad/Update) рекомендуется использовать логику в коде -->
                                                             </Storyboard>
                                                         </BeginStoryboard>
                                                     </EventTrigger>
@@ -1172,6 +1181,27 @@
                                                                 </materialDesign:PackIcon>
                                                                 <TextBlock Grid.Column="1" Text="{Binding DistanceKm, StringFormat=Расстояние: {0:F2} км, Converter={StaticResource NullToTextConverter}, ConverterParameter='Не указано'}" Style="{StaticResource OrderCardTextStyle}"/>
                                                             </Grid>
+                                                            <Grid Margin="0,0,0,8" Visibility="{Binding Status, Converter={StaticResource StatusToVisibilityConverter}, ConverterParameter=Pending}">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <materialDesign:PackIcon Kind="Clock" Width="20" Height="20" Foreground="#FF42A5F5" VerticalAlignment="Center" Margin="0,0,10,0">
+                                                                    <materialDesign:PackIcon.Style>
+                                                                        <Style TargetType="materialDesign:PackIcon">
+                                                                            <Setter Property="Width" Value="20"/>
+                                                                            <Setter Property="Height" Value="20"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
+                                                                                    <Setter Property="Width" Value="24"/>
+                                                                                    <Setter Property="Height" Value="24"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </materialDesign:PackIcon.Style>
+                                                                </materialDesign:PackIcon>
+                                                                <TextBlock x:Name="OrderTimer" Grid.Column="1" Text="{Binding TimeRemaining, StringFormat=Осталось времени: {0}}" Style="{StaticResource TimerTextStyle}"/>
+                                                            </Grid>
                                                         </StackPanel>
                                                         <!-- Правая колонка -->
                                                         <StackPanel Grid.Column="1">
@@ -1259,6 +1289,33 @@
                                                                 </materialDesign:PackIcon>
                                                                 <TextBlock Grid.Column="1" Text="{Binding ClientComment, StringFormat=Комментарий: {0}, Converter={StaticResource NullToTextConverter}, ConverterParameter='Нет комментария'}" Style="{StaticResource OrderCardTextStyle}"/>
                                                             </Grid>
+                                                            <Grid Margin="0,0,0,8">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <materialDesign:PackIcon Kind="CreditCard" Width="20" Height="20" Foreground="#FF42A5F5" VerticalAlignment="Center" Margin="0,0,10,0">
+                                                                    <materialDesign:PackIcon.Style>
+                                                                        <Style TargetType="materialDesign:PackIcon">
+                                                                            <Setter Property="Width" Value="20"/>
+                                                                            <Setter Property="Height" Value="20"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
+                                                                                    <Setter Property="Width" Value="24"/>
+                                                                                    <Setter Property="Height" Value="24"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </materialDesign:PackIcon.Style>
+                                                                </materialDesign:PackIcon>
+                                                                <TextBlock Grid.Column="1" Style="{StaticResource OrderCardTextStyle}">
+                                                                    <TextBlock.Text>
+                                                                        <MultiBinding StringFormat="Статус оплаты: {0}">
+                                                                            <Binding Path="IsPaid" Converter="{StaticResource BooleanToTextConverter}"/>
+                                                                        </MultiBinding>
+                                                                    </TextBlock.Text>
+                                                                </TextBlock>
+                                                            </Grid>
                                                         </StackPanel>
                                                     </Grid>
                                                     <!-- Кнопки и стоимость -->
@@ -1296,7 +1353,7 @@
                                                                         <Setter Property="Width" Value="120"/>
                                                                         <Setter Property="Height" Value="40"/>
                                                                         <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window},	Path=WindowState}" Value="Maximized">
+                                                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
                                                                                 <Setter Property="Width" Value="140"/>
                                                                                 <Setter Property="Height" Value="45"/>
                                                                             </DataTrigger>
@@ -1305,6 +1362,20 @@
                                                                 </Button.Style>
                                                             </Button>
                                                             <Button Click="RateDriver_Click" Tag="{Binding OrderId}" Content="Оценить" Visibility="{Binding Status, Converter={StaticResource StatusToVisibilityConverter}, ConverterParameter=Completed}">
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+                                                                        <Setter Property="Width" Value="120"/>
+                                                                        <Setter Property="Height" Value="40"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
+                                                                                <Setter Property="Width" Value="140"/>
+                                                                                <Setter Property="Height" Value="45"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                            </Button>
+                                                            <Button Click="PayOrder_Click" Tag="{Binding OrderId}" Content="Оплатить" Visibility="{Binding IsPaid, Converter={StaticResource StatusToVisibilityConverter}, ConverterParameter=NotPaid}">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
                                                                         <Setter Property="Width" Value="120"/>
@@ -1333,7 +1404,7 @@
                             <Grid.RenderTransform>
                                 <TranslateTransform X="0"/>
                             </Grid.RenderTransform>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer x:Name="ProfileScrollViewer" VerticalScrollBarVisibility="Auto">
                                 <Border x:Name="ProfileCard" CornerRadius="20" Margin="20" Padding="20">
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -1487,14 +1558,14 @@
                                                 </Grid.ColumnDefinitions>
                                                 <materialDesign:PackIcon Kind="Phone" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
                                                 <TextBox x:Name="ProfilePhone" Grid.Column="1"
-                                 Height="56"
-                                 FontSize="16"
-                                 Foreground="#FFFFFFFF"
-                                 materialDesign:HintAssist.Hint="Телефон"
-                                 materialDesign:HintAssist.Foreground="#FF888888"
-                                 materialDesign:HintAssist.FloatingOffset="0,-20"
-                                 IsReadOnly="True"
-                                 Style="{StaticResource MaterialDesignFloatingHintTextBox}">
+                                                     Height="56"
+                                                     FontSize="16"
+                                                     Foreground="#FFFFFFFF"
+                                                     materialDesign:HintAssist.Hint="Телефон"
+                                                     materialDesign:HintAssist.Foreground="#FF888888"
+                                                     materialDesign:HintAssist.FloatingOffset="0,-20"
+                                                     IsReadOnly="True"
+                                                     Style="{StaticResource MaterialDesignFloatingHintTextBox}">
                                                     <TextBox.Resources>
                                                         <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
                                                             <Setter Property="CaretBrush" Value="#FF42A5F5"/>
@@ -1521,14 +1592,14 @@
                                                 </Grid.ColumnDefinitions>
                                                 <materialDesign:PackIcon Kind="Email" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
                                                 <TextBox x:Name="ProfileEmail" Grid.Column="1"
-                                 Height="56"
-                                 FontSize="16"
-                                 Foreground="#FFFFFFFF"
-                                 materialDesign:HintAssist.Hint="Email"
-                                 materialDesign:HintAssist.Foreground="#FF888888"
-                                 materialDesign:HintAssist.FloatingOffset="0,-20"
-                                 IsReadOnly="True"
-                                 Style="{StaticResource MaterialDesignFloatingHintTextBox}">
+                                                     Height="56"
+                                                     FontSize="16"
+                                                     Foreground="#FFFFFFFF"
+                                                     materialDesign:HintAssist.Hint="Email"
+                                                     materialDesign:HintAssist.Foreground="#FF888888"
+                                                     materialDesign:HintAssist.FloatingOffset="0,-20"
+                                                     IsReadOnly="True"
+                                                     Style="{StaticResource MaterialDesignFloatingHintTextBox}">
                                                     <TextBox.Resources>
                                                         <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
                                                             <Setter Property="CaretBrush" Value="#FF42A5F5"/>
@@ -1589,14 +1660,14 @@
                                                 </Grid.ColumnDefinitions>
                                                 <materialDesign:PackIcon Kind="Calendar" Width="24" Height="24" Foreground="#FF888888" VerticalAlignment="Center" Margin="10,0,10,0"/>
                                                 <TextBox x:Name="ProfileRegistrationDate" Grid.Column="1"
-                                 Height="56"
-                                 FontSize="16"
-                                 Foreground="#FFFFFFFF"
-                                 materialDesign:HintAssist.Hint="Дата регистрации"
-                                 materialDesign:HintAssist.Foreground="#FF888888"
-                                 materialDesign:HintAssist.FloatingOffset="0,-20"
-                                 IsReadOnly="True"
-                                 Style="{StaticResource MaterialDesignFloatingHintTextBox}">
+                                                     Height="56"
+                                                     FontSize="16"
+                                                     Foreground="#FFFFFFFF"
+                                                     materialDesign:HintAssist.Hint="Дата регистрации"
+                                                     materialDesign:HintAssist.Foreground="#FF888888"
+                                                     materialDesign:HintAssist.FloatingOffset="0,-20"
+                                                     IsReadOnly="True"
+                                                     Style="{StaticResource MaterialDesignFloatingHintTextBox}">
                                                     <TextBox.Resources>
                                                         <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFloatingHintTextBox}">
                                                             <Setter Property="CaretBrush" Value="#FF42A5F5"/>
