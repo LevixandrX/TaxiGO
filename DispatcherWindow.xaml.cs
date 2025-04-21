@@ -273,7 +273,7 @@ namespace TaxiGO
         {
             if (_context.Orders == null)
             {
-                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки активных заказов.");
+                Snackbar.MessageQueue?.Enqueue("Ошибка загрузки заказов.");
                 return;
             }
 
@@ -316,7 +316,7 @@ namespace TaxiGO
             }
             catch (Exception ex)
             {
-                Snackbar.MessageQueue?.Enqueue($"Ошибка загрузки активных заказов: {ex.Message}");
+                Snackbar.MessageQueue?.Enqueue($"Ошибка загрузки заказов: {ex.Message}");
             }
         }
 
@@ -622,7 +622,7 @@ namespace TaxiGO
             if (sender is Button clickedButton)
             {
                 AssignOrdersNavButton.Tag = null;
-                ActiveOrdersNavButton.Tag = null;
+                OrderHistoryNavButton.Tag = null;
                 StatisticsNavButton.Tag = null;
                 clickedButton.Tag = "Active";
 
@@ -632,26 +632,26 @@ namespace TaxiGO
                 if (slideOutAnimation == null || slideInAnimation == null) return;
 
                 ResetPanelState(AssignOrdersPanel);
-                ResetPanelState(ActiveOrdersPanel);
+                ResetPanelState(OrderHistoryPanel);
                 ResetPanelState(StatisticsPanel);
 
                 if (clickedButton == AssignOrdersNavButton)
                 {
-                    SwitchPanel(new[] { ActiveOrdersPanel, StatisticsPanel }, AssignOrdersPanel, slideOutAnimation, slideInAnimation);
+                    SwitchPanel(new[] { OrderHistoryPanel, StatisticsPanel }, AssignOrdersPanel, slideOutAnimation, slideInAnimation);
                     WelcomeText.Text = "Назначить заказы";
                     Title = "TaxiGO - Назначить заказы";
                     LoadPendingOrders();
                 }
-                else if (clickedButton == ActiveOrdersNavButton)
+                else if (clickedButton == OrderHistoryNavButton)
                 {
-                    SwitchPanel(new[] { AssignOrdersPanel, StatisticsPanel }, ActiveOrdersPanel, slideOutAnimation, slideInAnimation);
-                    WelcomeText.Text = "Активные заказы";
-                    Title = "TaxiGO - Активные заказы";
+                    SwitchPanel(new[] { AssignOrdersPanel, StatisticsPanel }, OrderHistoryPanel, slideOutAnimation, slideInAnimation);
+                    WelcomeText.Text = "История заказов";
+                    Title = "TaxiGO - История заказов";
                     LoadActiveOrders();
                 }
                 else if (clickedButton == StatisticsNavButton)
                 {
-                    SwitchPanel(new[] { AssignOrdersPanel, ActiveOrdersPanel }, StatisticsPanel, slideOutAnimation, slideInAnimation);
+                    SwitchPanel(new[] { AssignOrdersPanel, OrderHistoryPanel }, StatisticsPanel, slideOutAnimation, slideInAnimation);
                     WelcomeText.Text = "Статистика";
                     Title = "TaxiGO - Статистика";
                     LoadStatistics(_currentStatisticsPeriod);

@@ -79,7 +79,7 @@ namespace TaxiGO
                 {
                     "Client" => new ClientWindow(_userName, _userId, _scopeFactory, App.ServiceProvider.GetRequiredService<IGeocodingService>()),
                     "Driver" => new DriverWindow(_userName, _userId, _scopeFactory, App.ServiceProvider.GetRequiredService<IGeocodingService>()),
-                    "Admin" => new AdminWindow(_userName, _userId, _scopeFactory), // Добавлен _userId
+                    "Admin" => new AdminWindow(_userName, _userId, _scopeFactory),
                     "Dispatcher" => new DispatcherWindow(_userName, _scopeFactory),
                     _ => throw new NotSupportedException("Неизвестная роль пользователя")
                 };

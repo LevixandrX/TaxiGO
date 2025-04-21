@@ -459,7 +459,7 @@
                             <Button x:Name="AssignOrdersNavButton" Grid.Row="0" Tag="Active" Click="NavButton_Click" Style="{StaticResource NavButtonStyle}" ToolTip="Назначить заказы">
                                 <materialDesign:PackIcon Kind="ClipboardCheck" Width="24" Height="24"/>
                             </Button>
-                            <Button x:Name="ActiveOrdersNavButton" Grid.Row="1" Click="NavButton_Click" Style="{StaticResource NavButtonStyle}" ToolTip="Активные заказы">
+                            <Button x:Name="OrderHistoryNavButton" Grid.Row="1" Click="NavButton_Click" Style="{StaticResource NavButtonStyle}" ToolTip="История заказов">
                                 <materialDesign:PackIcon Kind="Car" Width="24" Height="24"/>
                             </Button>
                             <Button x:Name="StatisticsNavButton" Grid.Row="2" Click="NavButton_Click" Style="{StaticResource NavButtonStyle}" ToolTip="Статистика">
@@ -879,8 +879,8 @@
                             </ScrollViewer>
                         </Grid>
 
-                        <!-- Вкладка "Активные заказы" -->
-                        <Grid x:Name="ActiveOrdersPanel" Opacity="0" Visibility="Hidden">
+                        <!-- Вкладка "История заказов" -->
+                        <Grid x:Name="OrderHistoryPanel" Opacity="0" Visibility="Hidden">
                             <Grid.RenderTransform>
                                 <TranslateTransform X="0"/>
                             </Grid.RenderTransform>
